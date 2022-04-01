@@ -6,6 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { useOutletContext } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
+import { shcJwsFixtures } from './fixtures';
+import QRCode from 'qrcode';
+
+import * as shdc from 'shc-decoder/esm/index';
 
 interface StoredSHC {
   id: number;
@@ -31,13 +35,9 @@ interface SHLinkConfig {
 
 interface SHLinkStatus {
   active: boolean;
-  accessToken: string;
+  url: string;
+  token: string;
   managementToken: string;
-  rar: {
-    type: 'shlink-view';
-    url: string;
-    hash?: string;
-  }[];
   log: {
     name: string;
     whenEpochSeconds: number[];
@@ -49,9 +49,49 @@ interface SHLink {
   name: string;
   serverConfig: SHLinkConfig;
   serverStatus?: SHLinkStatus;
-  encryptionKey?: Uint8Array[32];
+  encryptionKey?: Uint8Array;
   uploads: Record<StoredSHC['id'], 'need-delete' | 'need-add' | 'present'>;
 }
+
+function convertUint8ArrayToBinaryString(u8Array: Uint8Array) {}
+
+function b64urlencode(source: string | Uint8Array) {
+  let s = source;
+  if (source.constructor === Uint8Array) {
+    let i,
+      len = source.length,
+      bStr = '';
+    for (i = 0; i < len; i++) {
+      bStr += String.fromCharCode(source[i]);
+    }
+    s = bStr;
+  }
+  return btoa(s as string)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/\=/g, '');
+}
+
+function generateLinkUrl(shl: SHLink) {
+  const qrPayload = {
+    oauth: {
+      url: shl.serverStatus?.url,
+      token: shl.serverStatus?.token,
+    },
+    exp: shl.serverConfig.exp,
+    flags: shl.serverConfig.pin ? 'P' : '',
+    decrypt: shl.encryptionKey ? b64urlencode(shl.encryptionKey) : undefined,
+  };
+
+  const qrJson = JSON.stringify(qrPayload);
+  const qrEncoded = b64urlencode(qrJson);
+
+  const qrPrefixed = 'shclink:/' + qrEncoded;
+  const hostedLandingPage = '';
+  const link = (hostedLandingPage || '') + qrPrefixed;
+  return link;
+}
+
 interface DataSet {
   id: number;
   name: string;
@@ -68,20 +108,15 @@ const fakeServerDb: Record<string, Omit<SHLink, 'id' | 'name' | 'encryptionKey'>
 const fakeServer: DataServer = {
   storeShc: async (shl, shc) => {
     const config = fakeServerDb[shl.serverStatus!.managementToken];
-    config.serverStatus!.rar.push({
-      type: 'shlink-view',
-      url: 'https://sefver/' + Math.random(),
-      hash: `hash-of-todo(${shc.jws.slice(0, 10)})`,
-    });
     return Promise.resolve(config.serverStatus!);
   },
   createShl: async (shl) => {
     let serverStatus = {
-      accessToken: '123',
+      url: 'https://fakeserver.example.org/oauth/authorize',
+      token: '123',
       managementToken: '' + Math.random(),
       active: true,
       log: [],
-      rar: [],
     };
     fakeServerDb[serverStatus.managementToken] = {
       uploads: {},
@@ -112,12 +147,18 @@ class ServerStateSync {
   async createShl(datasetId: number, serverConfig: SHLinkConfig) {
     let serverStatus = await this.server.createShl(serverConfig);
     let newShlinkId = idGenerator++;
+    let encryptionKey;
+    if (serverConfig.encrypted) {
+      encryptionKey = new Uint8Array(32);
+      crypto.getRandomValues(encryptionKey);
+    }
     this.dispatch({
       type: 'shl-add',
       datasetId,
       shlink: {
         id: newShlinkId,
         name: 'TODO remove names',
+        encryptionKey,
         serverConfig,
         serverStatus,
         uploads: {},
@@ -224,26 +265,19 @@ const defaultDatasets: DataSet[] = [
     shlinks: {},
   },
 ];
-const defaultImmunizations: StoredSHC[] = [
-  {
-    id: 0,
-    jws: 'COVID-19 Vaccine dose 1',
-    payload: {
-      iss: 'hospital',
-      nbf: 0,
-      vc: { type: ['https://smarthealth.cards#immunization'], credentialSubject: { fhirBundle: {}, fhirVersion: '' } },
-    },
-  },
-  {
-    id: 1,
-    jws: 'COVID-19 Vaccine dose 2',
-    payload: {
-      iss: 'hospital',
-      nbf: 0,
-      vc: { type: ['https://smarthealth.cards#immunization'], credentialSubject: { fhirBundle: {}, fhirVersion: '' } },
-    },
-  },
-];
+
+const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
+  shcJwsFixtures.map(async (jws) => {
+    const context = new shdc.Context();
+    context.compact = jws;
+    const payload = (await shdc.low.decode.jws.compact(context)).jws.payload;
+    return {
+      id: idGenerator++,
+      jws,
+      payload,
+    };
+  }),
+);
 
 export function SHLinkCreate() {
   let navigate = useNavigate();
@@ -262,7 +296,7 @@ export function SHLinkCreate() {
 
   async function activate() {
     const newShlinkId = await serverSyncer.createShl(datasetId, {
-      encrypted: false,
+      encrypted: true,
       pin: usePin ? pin : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
     });
@@ -314,6 +348,7 @@ export function SHLink() {
 export function SHLinks() {
   let navigate = useNavigate();
   let { store, dispatch } = useStore();
+  let [qrData, setQrData] = useState(null as string | null);
 
   return (
     <div>
@@ -341,10 +376,33 @@ export function SHLinks() {
                     <button>See acccess log</button>
                   </li>
                   <li>
-                    <button>Show QR</button>
+                    <button
+                      onClick={async () => {
+                        if (qrData) {
+                          return setQrData(null);
+                        }
+                        const dataUrl = await QRCode.toDataURL(generateLinkUrl(shl));
+                        setQrData(dataUrl);
+                      }}
+                    >
+                      Show QR
+                    </button>
+                    {qrData && (
+                      <div className="qr-box">
+                        <img className="qr" src={qrData} />
+                        <img className="qr-overlay" src="smart-logo.svg"/>
+                      </div>
+                    )}
                   </li>
                   <li>
-                    <button>Copy to clipboard</button>
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(generateLinkUrl(shl));
+                        console.log('Copied');
+                      }}
+                    >
+                      Copy to clipboard
+                    </button>
                   </li>
                   <li>
                     <button>Deactivate</button>
@@ -437,7 +495,7 @@ let serverSyncer: ServerStateSync;
 
 function App() {
   let [store, dispatch] = useReducer(reducer, {
-    vaccines: Object.fromEntries(defaultImmunizations.map((o) => [o.id, o] as const)),
+    vaccines: [],
     sharing: Object.fromEntries(defaultDatasets.map((o) => [o.id, o] as const)),
   });
 
@@ -447,11 +505,9 @@ function App() {
     serverSyncer && serverSyncer.appStateChange();
   }, [store]);
 
-  console.log(store);
-
   useEffect(() => {
-    createFakeData(0, defaultShlinks, store, dispatch, fakeServer);
     serverSyncer = new ServerStateSync(storeRef, dispatch, fakeServer);
+    defaultImmunizations.then((vs) => vs.forEach((vaccine) => dispatch({ type: 'vaccine-add', vaccine })));
   }, []);
 
   return (
