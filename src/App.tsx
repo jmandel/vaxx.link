@@ -1,15 +1,11 @@
-import React, { useEffect, useReducer, useRef, useState } from 'react';
 import produce from 'immer';
-import './App.css';
-import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
-import { useOutletContext } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
-import { useSearchParams } from 'react-router-dom';
-import { shcJwsFixtures } from './fixtures';
 import QRCode from 'qrcode';
-
+import React, { useEffect, useReducer, useRef, useState } from 'react';
+import { NavLink, Outlet, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import * as shdc from 'smart-health-card-decoder/esm/index';
+import './App.css';
+import { shcJwsFixtures } from './fixtures';
+
 
 interface StoredSHC {
   id: number;
@@ -53,7 +49,6 @@ interface SHLink {
   uploads: Record<StoredSHC['id'], 'need-delete' | 'need-add' | 'present'>;
 }
 
-function convertUint8ArrayToBinaryString(u8Array: Uint8Array) {}
 
 function b64urlencode(source: string | Uint8Array) {
   let s = source;
@@ -69,7 +64,7 @@ function b64urlencode(source: string | Uint8Array) {
   return btoa(s as string)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
-    .replace(/\=/g, '');
+    .replace(/=/g, '');
 }
 
 function generateLinkUrl(shl: SHLink) {
@@ -224,36 +219,6 @@ class ServerStateSync {
   }
 }
 
-async function createFakeData(
-  datasetId: number,
-  shlinks: SHLink[],
-  store: AppState,
-  dispatch: React.Dispatch<AppAction>,
-  server: DataServer,
-) {
-  for (let shlink of shlinks) {
-    const ds = store.sharing[datasetId];
-    let serverStatus = await server.createShl(shlink.serverConfig);
-    dispatch({
-      type: 'shl-add',
-      datasetId: ds.id,
-      shlink: { ...shlink, serverStatus },
-    });
-  }
-  return;
-}
-
-const defaultShlinks: SHLink[] = [
-  {
-    id: 0,
-    name: "Josh's School Vaccines",
-    serverConfig: {
-      encrypted: false,
-    },
-    uploads: {},
-  },
-];
-
 const defaultDatasets: DataSet[] = [
   {
     id: 0,
@@ -284,21 +249,20 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
 
 export function SHLinkCreate() {
   let navigate = useNavigate();
-  let location = useLocation();
-  let { store, dispatch } = useStore();
+  let { store } = useStore();
   let [usePin, setUsePin] = useState(true);
   let [pin, setPin] = useState('1234');
   let [expires, setExpires] = useState(false);
 
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
-  let [searchParams, setSearchParams] = useSearchParams();
+  let [searchParams] = useSearchParams();
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
   let vaccines = Object.values(store.vaccines).filter(ds.shcFilter ?? (() => true));
 
   async function activate() {
-    const newShlinkId = await serverSyncer.createShl(datasetId, {
+     await serverSyncer.createShl(datasetId, {
       encrypted: true,
       pin: usePin ? pin : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
@@ -341,8 +305,7 @@ export function SHLinkCreate() {
   );
 }
 
-export function SHLink() {
-  let navigate = useNavigate();
+export function SHLinkDetail() {
   let params = useParams();
   return (
     <>
@@ -365,7 +328,7 @@ export function SHLinks() {
       setQrData(Object.fromEntries(qrs));
       setQrDisplay(Object.fromEntries(qrs.map(([l, _]) => [l, false])));
     });
-  }, [store.sharing]);
+  }, [allLinks]);
 
   return (
     <div>
@@ -406,8 +369,8 @@ export function SHLinks() {
                 </button>
                 {qrDisplay?.[shl.id] && (
                   <div className="qr-box">
-                    <img className="qr" src={qrData?.[shl.id]} />
-                    <img className="qr-overlay" src="smart-logo.svg" />
+                    <img alt="QR code" className="qr" src={qrData?.[shl.id]} />
+                    <img alt="SMART logo" className="qr-overlay" src="smart-logo.svg" />
                   </div>
                 )}
                 <br></br>
@@ -484,28 +447,28 @@ type AppAction =
     };
 
 function reducer(state: AppState, action: AppAction): AppState {
-  if (action.type == 'vaccine-add') {
+  if (action.type === 'vaccine-add') {
     return produce(state, (state) => {
       state.vaccines[action.vaccine.id] = action.vaccine;
     });
   }
-  if (action.type == 'shl-add') {
+  if (action.type === 'shl-add') {
     return produce(state, (state) => {
       state.sharing[action.datasetId].shlinks[action.shlink.id] = action.shlink;
     });
   }
-  if (action.type == 'shl-remove') {
+  if (action.type === 'shl-remove') {
     return produce(state, (state) => {
       delete state.sharing[action.datasetId].shlinks[action.shlinkId];
     });
   }
-  if (action.type == 'shl-status-update') {
+  if (action.type === 'shl-status-update') {
     return produce(state, (state) => {
       state.sharing[action.datasetId].shlinks[action.shlinkId].serverStatus = action.status;
     });
   }
 
-  if (action.type == 'shl-shc-sync') {
+  if (action.type === 'shl-shc-sync') {
     return produce(state, (state) => {
       if (action.shlServerStatus) {
         state.sharing[action.datasetId].shlinks[action.shlinkId].serverStatus = action.shlServerStatus;
