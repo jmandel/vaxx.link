@@ -319,16 +319,17 @@ export function SHLinks() {
   let { store, dispatch } = useStore();
   let [qrDisplay, setQrDisplay] = useState({} as Record<number, boolean> | null);
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
-  let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
 
   useEffect(() => {
+    console.log("SHLinks changed; rerender QR")
+    let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
     Promise.all(
       allLinks.map(async (l) => [l.id, await QRCode.toDataURL(generateLinkUrl(l), { errorCorrectionLevel: 'medium' })]),
     ).then((qrs) => {
       setQrData(Object.fromEntries(qrs));
       setQrDisplay(Object.fromEntries(qrs.map(([l, _]) => [l, false])));
     });
-  }, [allLinks]);
+  }, [store.sharing]);
 
   return (
     <div>
