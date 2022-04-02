@@ -9,7 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 import { shcJwsFixtures } from './fixtures';
 import QRCode from 'qrcode';
 
-import * as shdc from 'shc-decoder/esm/index';
+import * as shdc from 'smart-health-card-decoder/esm/index';
 
 interface StoredSHC {
   id: number;
@@ -21,7 +21,7 @@ interface StoredSHC {
       type: string[];
       credentialSubject: {
         fhirVersion: string;
-        fhirBundle: object;
+        fhirBundle: any;
       };
     };
   };
@@ -111,9 +111,12 @@ const fakeServer: DataServer = {
     return Promise.resolve(config.serverStatus!);
   },
   createShl: async (shl) => {
+    let fakeAccessToken = new Uint8Array(32);
+    crypto.getRandomValues(fakeAccessToken);
+
     let serverStatus = {
-      url: 'https://fakeserver.example.org/oauth/authorize',
-      token: '123',
+      url: 'https://fakeserver-with-a-long-url.example.org/oauth/v3/intenral-routing-path-segments/authorize',
+      token: b64urlencode(fakeAccessToken),
       managementToken: '' + Math.random(),
       active: true,
       log: [],
@@ -300,7 +303,8 @@ export function SHLinkCreate() {
       pin: usePin ? pin : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
     });
-    navigate(`/health-links/${ds.id}/${newShlinkId}`, { replace: true });
+    navigate(`/health-links`, { replace: true });
+    // navigate(`/health-links/${ds.id}/${newShlinkId}`, { replace: true });
   }
 
   return (
@@ -326,9 +330,11 @@ export function SHLinkCreate() {
       {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
       <h4>Current Records to Share</h4>
       <ol>
-        {vaccines.map((v, i) => (
-          <li key={i}>{v.jws}</li>
-        ))}
+        {vaccines.map((v, i) => {
+          let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
+          let drug = {"207": "COVID", "208": "COVID"}[fe[1].resource.vaccineCode.coding[0].code as string] || ""
+          return <li key={i}>{fe[0].resource.name[0].given} {fe[0].resource.name[0].family} ({drug} {fe[1].resource.resourceType } from {fe[1].resource.occurrenceDateTime})</li>
+        })}
       </ol>
       <button onClick={activate}>Activate new sharing link</button>
     </>
@@ -348,7 +354,18 @@ export function SHLink() {
 export function SHLinks() {
   let navigate = useNavigate();
   let { store, dispatch } = useStore();
-  let [qrData, setQrData] = useState(null as string | null);
+  let [qrDisplay, setQrDisplay] = useState({} as Record<number, boolean> | null);
+  let [qrData, setQrData] = useState({} as Record<number, string> | null);
+  let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
+
+  useEffect(() => {
+    Promise.all(
+      allLinks.map(async (l) => [l.id, await QRCode.toDataURL(generateLinkUrl(l), { errorCorrectionLevel: 'medium' })]),
+    ).then((qrs) => {
+      setQrData(Object.fromEntries(qrs));
+      setQrDisplay(Object.fromEntries(qrs.map(([l, _]) => [l, false])));
+    });
+  }, [store.sharing]);
 
   return (
     <div>
@@ -356,61 +373,66 @@ export function SHLinks() {
         <React.Fragment key={ds.id}>
           <h4>
             {ds.name}
-            <button onClick={() => navigate('/health-links/new?ds=' + ds.id)}>Create new link</button>
+            {Object.entries(ds.shlinks).length === 0 && (
+              <button onClick={() => navigate('/health-links/new?ds=' + ds.id)}>Create new link</button>
+            )}
           </h4>
-          <ul>
-            {Object.values(ds.shlinks).map((shl, i) => (
-              <li key={i}>
-                "{shl.name}"
-                <ul>
-                  <li>
-                    <em>Expires: {shl.serverConfig.exp ?? 'never'}</em>
-                  </li>
-                  <li>
-                    <em>Access count: {shl.serverStatus?.log.flatMap((l) => l.whenEpochSeconds).length}</em>
-                  </li>
-                  <li>
-                    <em>PIN enabled? {shl.serverConfig.pin ? '🔒' : '🔓'}</em>
-                  </li>
-                  <li>
-                    <button>See acccess log</button>
-                  </li>
-                  <li>
-                    <button
-                      onClick={async () => {
-                        if (qrData) {
-                          return setQrData(null);
-                        }
-                        const dataUrl = await QRCode.toDataURL(generateLinkUrl(shl));
-                        setQrData(dataUrl);
-                      }}
-                    >
-                      Show QR
-                    </button>
-                    {qrData && (
-                      <div className="qr-box">
-                        <img className="qr" src={qrData} />
-                        <img className="qr-overlay" src="smart-logo.svg"/>
-                      </div>
-                    )}
-                  </li>
-                  <li>
-                    <button
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(generateLinkUrl(shl));
-                        console.log('Copied');
-                      }}
-                    >
-                      Copy to clipboard
-                    </button>
-                  </li>
-                  <li>
-                    <button>Deactivate</button>
-                  </li>
-                </ul>
+          {Object.values(ds.shlinks).map((shl, i) => (
+            <ul key={i}>
+              <li>
+                <em>PIN {shl.serverConfig.pin ? 'enabled 🔒' : 'disabled 🔓'}</em>
               </li>
-            ))}
-          </ul>
+              <li>
+                <em>
+                  {shl.serverConfig.exp
+                    ? `Expires ${new Date(shl.serverConfig.exp * 1000).toLocaleDateString()}`
+                    : 'Never expires'}
+                </em>
+              </li>
+              <li>
+                <em>Access count: {shl.serverStatus?.log.flatMap((l) => l.whenEpochSeconds).length}</em>
+                <br></br>
+                <button>See acccess log</button>
+              </li>
+              <li>
+                Share
+                <br></br>
+                <button
+                  onClick={async () => {
+                    setQrDisplay({ ...qrDisplay, [shl.id]: !qrDisplay?.[shl.id] });
+                  }}
+                >
+                  {qrDisplay?.[shl.id] ? 'Hide' : 'Show'} QR
+                </button>
+                {qrDisplay?.[shl.id] && (
+                  <div className="qr-box">
+                    <img className="qr" src={qrData?.[shl.id]} />
+                    <img className="qr-overlay" src="smart-logo.svg" />
+                  </div>
+                )}
+                <br></br>
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(generateLinkUrl(shl));
+                    console.log('Copied');
+                  }}
+                >
+                  Copy to clipboard
+                </button>
+              </li>
+              <li>
+                Manage
+                <br></br>
+                <button
+                  onClick={() => {
+                    dispatch({ type: 'shl-remove', datasetId: ds.id, shlinkId: shl.id });
+                  }}
+                >
+                  Deactivate
+                </button>
+              </li>
+            </ul>
+          ))}
         </React.Fragment>
       ))}
 
@@ -425,7 +447,6 @@ export function SHLinks() {
 interface AppState {
   vaccines: Record<number, StoredSHC>;
   sharing: Record<number, DataSet>;
-  lastShlinkId?: number;
 }
 
 type AppAction =
@@ -441,6 +462,11 @@ type AppAction =
       type: 'shl-add';
       datasetId: number;
       shlink: DataSet['shlinks'][number];
+    }
+  | {
+      type: 'shl-remove';
+      datasetId: number;
+      shlinkId: number;
     }
   | {
       type: 'shl-status-update';
@@ -466,7 +492,11 @@ function reducer(state: AppState, action: AppAction): AppState {
   if (action.type == 'shl-add') {
     return produce(state, (state) => {
       state.sharing[action.datasetId].shlinks[action.shlink.id] = action.shlink;
-      state.lastShlinkId = action.shlink.id;
+    });
+  }
+  if (action.type == 'shl-remove') {
+    return produce(state, (state) => {
+      delete state.sharing[action.datasetId].shlinks[action.shlinkId];
     });
   }
   if (action.type == 'shl-status-update') {
