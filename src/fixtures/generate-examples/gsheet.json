@@ -1,0 +1,1351 @@
+{
+  "version": "0.6",
+  "reqId": "0",
+  "status": "ok",
+  "sig": "1334871230",
+  "table": {
+    "cols": [
+      {
+        "id": "A",
+        "label": "Given Name",
+        "type": "string"
+      },
+      {
+        "id": "B",
+        "label": "Family Name",
+        "type": "string"
+      },
+      {
+        "id": "C",
+        "label": "Birth Date",
+        "type": "date",
+        "pattern": "yyyy-mm-dd"
+      },
+      {
+        "id": "D",
+        "label": "Vaccine Date",
+        "type": "date",
+        "pattern": "yyyy-mm-dd"
+      },
+      {
+        "id": "E",
+        "label": "Vaccine Product Short Name",
+        "type": "string"
+      },
+      {
+        "id": "F",
+        "label": "Vaccine Product",
+        "type": "string"
+      },
+      {
+        "id": "G",
+        "label": "CVX",
+        "type": "string"
+      },
+      {
+        "id": "H",
+        "label": "Location",
+        "type": "string"
+      },
+      {
+        "id": "I",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "J",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "K",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "L",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "M",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "N",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "O",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "P",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "Q",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "R",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "S",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "T",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "U",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "V",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "W",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "X",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "Y",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "Z",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "AA",
+        "label": "",
+        "type": "string"
+      },
+      {
+        "id": "AB",
+        "label": "",
+        "type": "string"
+      }
+    ],
+    "rows": [
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Hep B, adolescent or pediatric"
+          },
+          {
+            "v": "hepatitis B vaccine, pediatric or pediatric/adolescent dosage\t"
+          },
+          {
+            "v": "08"
+          },
+          {
+            "v": "Meriter Hospital"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,2,5)",
+            "f": "2017-03-05"
+          },
+          {
+            "v": "DTaP,IPV,Hib,HepB        "
+          },
+          {
+            "v": "Diphtheria and Tetanus Toxoids and Acellular Pertussis Adsorbed, Inactivated Poliovirus, Haemophilus b Conjugate (Meningococcal Protein Conjugate), and Hepatitis B (Recombinant) Vaccine.        "
+          },
+          {
+            "v": "146"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,2,5)",
+            "f": "2017-03-05"
+          },
+          {
+            "v": "rotavirus, pentavalent        "
+          },
+          {
+            "v": "rotavirus, live, pentavalent vaccine\t"
+          },
+          {
+            "v": "116"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,2,5)",
+            "f": "2017-03-05"
+          },
+          {
+            "v": "Pneumococcal conjugate PCV 13\t"
+          },
+          {
+            "v": "pneumococcal conjugate vaccine, 13 valent\t"
+          },
+          {
+            "v": "133"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,4,8)",
+            "f": "2017-05-08"
+          },
+          {
+            "v": "DTaP-Hib-IPV\t"
+          },
+          {
+            "v": "diphtheria, tetanus toxoids and acellular pertussis vaccine, Haemophilus influenzae type b conjugate, and poliovirus vaccine, inactivated (DTaP-Hib-IPV)\t"
+          },
+          {
+            "v": "120"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,4,8)",
+            "f": "2017-05-08"
+          },
+          {
+            "v": "Pneumococcal conjugate PCV 13\t"
+          },
+          {
+            "v": "pneumococcal conjugate vaccine, 13 valent\t"
+          },
+          {
+            "v": "133"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,4,8)",
+            "f": "2017-05-08"
+          },
+          {
+            "v": "rotavirus, pentavalent        "
+          },
+          {
+            "v": "rotavirus, live, pentavalent vaccine\t"
+          },
+          {
+            "v": "116"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,6,10)",
+            "f": "2017-07-10"
+          },
+          {
+            "v": "DTaP,IPV,Hib,HepB        "
+          },
+          {
+            "v": "Diphtheria and Tetanus Toxoids and Acellular Pertussis Adsorbed, Inactivated Poliovirus, Haemophilus b Conjugate (Meningococcal Protein Conjugate), and Hepatitis B (Recombinant) Vaccine.\t"
+          },
+          {
+            "v": "146"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,6,10)",
+            "f": "2017-07-10"
+          },
+          {
+            "v": "Pneumococcal conjugate PCV 13\t"
+          },
+          {
+            "v": "pneumococcal conjugate vaccine, 13 valent\t"
+          },
+          {
+            "v": "133"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,6,10)",
+            "f": "2017-07-10"
+          },
+          {
+            "v": "rotavirus, pentavalent        "
+          },
+          {
+            "v": "rotavirus, live, pentavalent vaccine\t"
+          },
+          {
+            "v": "116"
+          },
+          {
+            "v": "UW Health Pediatric"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2017,8,20)",
+            "f": "2017-09-20"
+          },
+          {
+            "v": "Influenza vaccine, quadrivalent, adjuvanted\t"
+          },
+          {
+            "v": "influenza, seasonal vaccine, quadrivalent, adjuvanted, .5mL dose, preservative free\t"
+          },
+          {
+            "v": "205"
+          },
+          {
+            "v": "CVS Store #17622"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,0,6)",
+            "f": "2018-01-06"
+          },
+          {
+            "v": "MMRV"
+          },
+          {
+            "v": "measles, mumps, rubella, and varicella virus vaccine\t"
+          },
+          {
+            "v": "94"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,0,6)",
+            "f": "2018-01-06"
+          },
+          {
+            "v": "Pneumococcal conjugate PCV 13\t"
+          },
+          {
+            "v": "pneumococcal conjugate vaccine, 13 valent\t"
+          },
+          {
+            "v": "133"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,0,6)",
+            "f": "2018-01-06"
+          },
+          {
+            "v": "Hib (PRP-T)\t"
+          },
+          {
+            "v": "Haemophilus influenzae type b vaccine, PRP-T conjugate\t"
+          },
+          {
+            "v": "48"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,0,6)",
+            "f": "2018-01-06"
+          },
+          {
+            "v": "Hep A, ped/adol, 2 dose\t"
+          },
+          {
+            "v": "hepatitis A vaccine, pediatric/adolescent dosage, 2 dose schedule\t"
+          },
+          {
+            "v": "83"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,3,12)",
+            "f": "2018-04-12"
+          },
+          {
+            "v": "DTaP, 5 pertussis antigens\t"
+          },
+          {
+            "v": "diphtheria, tetanus toxoids and acellular pertussis vaccine, 5 pertussis antigens\t"
+          },
+          {
+            "v": "106"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,6,10)",
+            "f": "2018-07-10"
+          },
+          {
+            "v": "Hep A, ped/adol, 2 dose\t"
+          },
+          {
+            "v": "hepatitis A vaccine, pediatric/adolescent dosage, 2 dose schedule\t"
+          },
+          {
+            "v": "83"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2018,8,13)",
+            "f": "2018-09-13"
+          },
+          {
+            "v": "Influenza vaccine, quadrivalent, adjuvanted\t"
+          },
+          {
+            "v": "influenza, seasonal vaccine, quadrivalent, adjuvanted, .5mL dose, preservative free\t"
+          },
+          {
+            "v": "205"
+          },
+          {
+            "v": "CVS Store #17584"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2019,8,2)",
+            "f": "2019-09-02"
+          },
+          {
+            "v": "Influenza vaccine, quadrivalent, adjuvanted\t"
+          },
+          {
+            "v": "influenza, seasonal vaccine, quadrivalent, adjuvanted, .5mL dose, preservative free\t"
+          },
+          {
+            "v": "205"
+          },
+          {
+            "v": "Walgreens Store #4240"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2020,9,12)",
+            "f": "2020-10-12"
+          },
+          {
+            "v": "Influenza vaccine, quadrivalent, adjuvanted\t"
+          },
+          {
+            "v": "influenza, seasonal vaccine, quadrivalent, adjuvanted, .5mL dose, preservative free\t"
+          },
+          {
+            "v": "205"
+          },
+          {
+            "v": "Walgreens Store #4240"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2021,0,20)",
+            "f": "2021-01-20"
+          },
+          {
+            "v": "MMRV"
+          },
+          {
+            "v": "measles, mumps, rubella, and varicella virus vaccine\t"
+          },
+          {
+            "v": "94"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2021,0,20)",
+            "f": "2021-01-20"
+          },
+          {
+            "v": "DTaP-IPV\t"
+          },
+          {
+            "v": "Diphtheria, tetanus toxoids and acellular pertussis vaccine, and poliovirus vaccine, inactivated\t"
+          },
+          {
+            "v": "130"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      },
+      {
+        "c": [
+          {
+            "v": "Oliver"
+          },
+          {
+            "v": "Brown"
+          },
+          {
+            "v": "Date(2017,0,4)",
+            "f": "2017-01-04"
+          },
+          {
+            "v": "Date(2021,8,20)",
+            "f": "2021-09-20"
+          },
+          {
+            "v": "Influenza vaccine, quadrivalent, adjuvanted\t"
+          },
+          {
+            "v": "influenza, seasonal vaccine, quadrivalent, adjuvanted, .5mL dose, preservative free\t"
+          },
+          {
+            "v": "205"
+          },
+          {
+            "v": "Children's Wisconsin"
+          },
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "v": null
+          }
+        ]
+      }
+    ],
+    "parsedNumHeaders": 1
+  }
+}

@@ -4,8 +4,10 @@ import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import * as shdc from 'smart-health-card-decoder/esm/index';
 import './App.css';
-import { shcJwsFixtures } from './fixtures';
+import  shcJwsFixtures  from './fixtures';
+import  cvxConst  from './fixtures/cvx.json';
 
+const cvx: Record<string, string> = cvxConst;
 
 interface StoredSHC {
   id: number;
@@ -292,12 +294,16 @@ export function SHLinkCreate() {
       />{' '}
       Link expires?{' '}
       {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
-      <h4>Current Records to Share</h4>
+      <h4>Records to Share</h4>
       <ol>
         {vaccines.map((v, i) => {
           let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
-          let drug = {"207": "COVID", "208": "COVID"}[fe[1].resource.vaccineCode.coding[0].code as string] || ""
-          return <li key={i}>{fe[0].resource.name[0].given} {fe[0].resource.name[0].family} ({drug} {fe[1].resource.resourceType } from {fe[1].resource.occurrenceDateTime})</li>
+          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || "immunization"
+          let location = fe[1].resource?.performer?.[0]?.actor?.display  || "location"
+          return <li key={i} style={{fontFamily: "monospace"}}>
+            {fe[1].resource.occurrenceDateTime}{" "}
+            {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{" "}
+            {drug.slice(0, 23)}{drug.length > 20 ? "..." : ""} at {location}</li>
         })}
       </ol>
       <button onClick={activate}>Activate new sharing link</button>
