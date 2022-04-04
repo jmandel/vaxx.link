@@ -20,7 +20,7 @@
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.2.2",
     "react-scripts": "5.0.0",
-    "smart-health-card-decoder": "github:jmandel/shc-decoder#for-cra",
+    "smart-health-card-decoder": "github:smart-health-cards/shc-decoder#for-cra",
     "typescript": "^4.6.3",
     "universal-base64url": "^1.1.0",
     "web-vitals": "^2.1.4"
