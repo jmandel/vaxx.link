@@ -1,10 +1,8 @@
 import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
-import { HashRouter, Routes, Route } from "react-router-dom";
-
+import { HashRouter, Route, Routes } from "react-router-dom";
+import App, { SettingsPage, SHLinkCreate, SHLinkDetail, SHLinks } from './App';
 import './index.css';
-import App, { SHLinkDetail } from './App';
-import { SHLinks, SHLinkCreate} from './App';
 import reportWebVitals from './reportWebVitals';
 
 let root = ReactDOMClient.createRoot(document.getElementById('root')!);
@@ -16,6 +14,7 @@ root.render(
           <Route path="health-links/new" element={<SHLinkCreate />} />
           <Route path="health-links" element={<SHLinks />} />
           <Route path="health-links/:datasetId/:shlinkId" element={<SHLinkDetail />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </HashRouter>

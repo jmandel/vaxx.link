@@ -1,11 +1,24 @@
+import RestoreIcon from '@mui/icons-material/Restore';
+import Settings from '@mui/icons-material/Settings';
+import ShareIcon from '@mui/icons-material/Share';
+import { BottomNavigation, BottomNavigationAction } from '@mui/material';
+import Container from '@mui/material/Container';
 import produce from 'immer';
 import QRCode from 'qrcode';
 import React, { useEffect, useReducer, useRef, useState } from 'react';
-import { NavLink, Outlet, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+  useSearchParams
+} from 'react-router-dom';
 import * as shdc from 'smart-health-card-decoder/esm/index';
 import './App.css';
-import  shcJwsFixtures  from './fixtures';
-import  cvxConst  from './fixtures/cvx.json';
+import shcJwsFixtures from './fixtures';
+import cvxConst from './fixtures/cvx.json';
 
 const cvx: Record<string, string> = cvxConst;
 
@@ -50,7 +63,6 @@ interface SHLink {
   encryptionKey?: Uint8Array;
   uploads: Record<StoredSHC['id'], 'need-delete' | 'need-add' | 'present'>;
 }
-
 
 function b64urlencode(source: string | Uint8Array) {
   let s = source;
@@ -264,7 +276,7 @@ export function SHLinkCreate() {
   let vaccines = Object.values(store.vaccines).filter(ds.shcFilter ?? (() => true));
 
   async function activate() {
-     await serverSyncer.createShl(datasetId, {
+    await serverSyncer.createShl(datasetId, {
       encrypted: true,
       pin: usePin ? pin : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
@@ -298,12 +310,15 @@ export function SHLinkCreate() {
       <ol>
         {vaccines.map((v, i) => {
           let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
-          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || "immunization"
-          let location = fe[1].resource?.performer?.[0]?.actor?.display  || "location"
-          return <li key={i} style={{fontFamily: "monospace"}}>
-            {fe[1].resource.occurrenceDateTime}{" "}
-            {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{" "}
-            {drug.slice(0, 23)}{drug.length > 20 ? "..." : ""} at {location}</li>
+          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
+          let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
+          return (
+            <li key={i} style={{ fontFamily: 'monospace' }}>
+              {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+              {drug.slice(0, 23)}
+              {drug.length > 20 ? '...' : ''} at {location}
+            </li>
+          );
         })}
       </ol>
       <button onClick={activate}>Activate new sharing link</button>
@@ -327,7 +342,7 @@ export function SHLinks() {
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
 
   useEffect(() => {
-    console.log("SHLinks changed; rerender QR")
+    console.log('SHLinks changed; rerender QR');
     let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
     Promise.all(
       allLinks.map(async (l) => [l.id, await QRCode.toDataURL(generateLinkUrl(l), { errorCorrectionLevel: 'medium' })]),
@@ -491,6 +506,10 @@ function reducer(state: AppState, action: AppAction): AppState {
   return state;
 }
 
+export function SettingsPage() {
+  return <>TODO</>;
+}
+
 let serverSyncer: ServerStateSync;
 
 function App() {
@@ -510,22 +529,42 @@ function App() {
     defaultImmunizations.then((vs) => vs.forEach((vaccine) => dispatch({ type: 'vaccine-add', vaccine })));
   }, []);
 
+  let location = useLocation()
+  let initialLocation = useRef(location)
+  useEffect(() => {
+    setTopNavValue(initialLocation.current.pathname!.split('/')[1]);
+  }, [initialLocation]);
+
+  let [topNavValue, setTopNavValue] = useState('vaccines');
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <NavLink
-          to="/"
-          className={(al: any) => {
-            return 'classone';
-          }}
-        >
-          Vaccines
-        </NavLink>
-        <NavLink to="/health-links">Health Links</NavLink>
-        <NavLink to="/settings">Settings</NavLink>
-      </header>
+    <Container maxWidth="sm">
+      <BottomNavigation
+        showLabels
+        value={topNavValue}
+        onChange={(event, newValue) => {
+          setTopNavValue(newValue);
+        }}
+      >
+        <BottomNavigationAction label="Vaccines" component={NavLink} to="/" value="" icon={<RestoreIcon />} />
+        <BottomNavigationAction
+          label="Health Links"
+          component={NavLink}
+          value="health-links"
+          to="/health-links"
+          icon={<ShareIcon />}
+        />
+        <BottomNavigationAction
+          label="Settings"
+          component={NavLink}
+          value="settings"
+          to="/settings"
+          icon={<Settings />}
+        />
+      </BottomNavigation>
+
       <Outlet context={{ store, dispatch, serverSyncer }} />
-    </div>
+    </Container>
   );
 }
 
