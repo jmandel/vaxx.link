@@ -3,8 +3,13 @@ import { oakCors } from 'https://deno.land/x/cors@v1.2.2/mod.ts';
 import { encode } from 'https://deno.land/std@0.133.0/encoding/base64url.ts';
 import * as jose from 'https://deno.land/x/jose@v4.6.0/index.ts';
 
-const baseUrl = "http://localhost:8000"
-const authzUrl = baseUrl + "/authorize"
+async function envOrDefault(variable: string, defaultValue: string) {
+  const havePermission = (await Deno.permissions.query({ name: 'env', variable})).state === 'granted';
+  return havePermission &&  Deno.env.get(variable) || defaultValue
+}
+
+const baseUrl = await envOrDefault("PUBLIC_URL", "http://localhost:8000");
+const authzUrl = baseUrl + '/authorize';
 
 function randomStringWithEntropy(entropy: number) {
   const b = new Uint8Array(entropy);
@@ -27,15 +32,14 @@ interface HealthLinkFile {
   content: Uint8Array;
 }
 
-interface SHLinkConfig {
+interface HealthLinkConfig {
   pin?: string;
   exp?: number;
   encrypted: boolean;
 }
 
-
 interface HealthLink {
-  config: SHLinkConfig;
+  config: HealthLinkConfig;
   active: boolean;
   url: string;
   token: string;
@@ -46,7 +50,7 @@ interface HealthLink {
 
 const DbLinks = new Map<string, HealthLink>();
 
-function createDbLink(config: SHLinkConfig): HealthLink {
+function createDbLink(config: HealthLinkConfig): HealthLink {
   return {
     config,
     url: authzUrl,
@@ -58,10 +62,9 @@ function createDbLink(config: SHLinkConfig): HealthLink {
   };
 }
 interface SHLinkAddFileRequest {
-  id: string,
-  files: HealthLinkFile[]
+  id: string;
+  files: HealthLinkFile[];
 }
-
 
 const router = new Router()
   .get('/', async (context) => {
@@ -71,53 +74,42 @@ const router = new Router()
     });
   })
   .post('/shl', async (context) => {
-    const config: SHLinkConfig = await context.request.body({ type: 'json' }).value;
-    const newLink = createDbLink(config)
-    DbLinks.set(newLink.token, newLink)
-    context.response.body =  {
+    const config: HealthLinkConfig = await context.request.body({ type: 'json' }).value;
+    const newLink = createDbLink(config);
+    DbLinks.set(newLink.token, newLink);
+    context.response.body = {
       ...newLink,
-      files: undefined
-    }
+      files: undefined,
+    };
   })
   .get('/shl/:shlId/file/:fileIndex', (context) => {
     // TODO add authz ;-)
-    const shl = DbLinks.get(context.params.shlId)!
-    const file = shl.files![Number(context.params.fileIndex)] 
-    context.response.headers.set("content-type", file.contentType)
-    context.response.body = file.content
+    const shl = DbLinks.get(context.params.shlId)!;
+    const file = shl.files![Number(context.params.fileIndex)];
+    context.response.headers.set('content-type', file.contentType);
+    context.response.body = file.content;
   })
   .post('/shl/:shlId/file', async (context) => {
-    const managementToken = await context.request.headers.get("authorization")?.split(/bearer /i)[1];
-    const newFileBody = await context.request.body({type: "bytes"})
+    const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1];
+    const newFileBody = await context.request.body({ type: 'bytes' });
 
-    const shl = DbLinks.get(context.params.shlId)!
+    const shl = DbLinks.get(context.params.shlId)!;
     if (!shl || managementToken !== shl.managementToken) {
-      throw new Error(`Can't manage SHLink ` + context.params.shlId)
+      throw new Error(`Can't manage SHLink ` + context.params.shlId);
     }
 
     shl.files = shl.files!.concat({
-      contentType: context.request.headers.get("content-type")!,
-      content: await newFileBody.value
-    })
+      contentType: context.request.headers.get('content-type')!,
+      content: await newFileBody.value,
+    });
 
     context.response.body = {
       ...shl,
       files: undefined,
-      addedFiles: shl.files.length
-    }
+      addedFiles: shl.files.length,
+    };
   })
-  .get('/path', (context) => {
-    context.response.body = 'path' + Deno.cwd();
-  })
-  .get('/links', (context) => {
-    context.response.body = Array.from(DbLinks.values());
-  })
-  .get('/link/:id', (context) => {
-    if (context.params && context.params.id && DbLinks.has(context.params.id)) {
-      context.response.body = DbLinks.get(context.params.id);
-    }
-  })
-  .get('/jwt', async (context) => {
+  .get('/jwt-demo', async (context) => {
     const key = await jose.generateKeyPair('ES384');
     context.response.body = {
       jws: await new jose.SignJWT({ a: 1, b: 2 })
