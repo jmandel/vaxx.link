@@ -1,15 +1,25 @@
-import { Application, Router, send } from 'https://deno.land/x/oak@v10.5.1/mod.ts';
-import { oakCors } from 'https://deno.land/x/cors@v1.2.2/mod.ts';
-import { encode } from 'https://deno.land/std@0.133.0/encoding/base64url.ts';
-import * as jose from 'https://deno.land/x/jose@v4.6.0/index.ts';
+import { base64url, jose, oak, cors } from './deps.ts';
+const { Application, Router, send } = oak;
+const { oakCors } = cors;
+const { encode } = base64url;
+
+
+const defaultEnv = {
+  PUBLIC_URL: 'http://localhost:8000',
+} as const;
 
 async function envOrDefault(variable: string, defaultValue: string) {
-  const havePermission = (await Deno.permissions.query({ name: 'env', variable})).state === 'granted';
-  return havePermission &&  Deno.env.get(variable) || defaultValue
+  const havePermission = (await Deno.permissions.query({ name: 'env', variable })).state === 'granted';
+  return (havePermission && Deno.env.get(variable)) || defaultValue;
 }
 
-const baseUrl = await envOrDefault("PUBLIC_URL", "http://localhost:8000");
-const authzUrl = baseUrl + '/authorize';
+const env = Object.fromEntries(
+  await Promise.all(
+    Object.entries(defaultEnv).map(async ([k, v]) => [k, await envOrDefault(k, v)]),
+  ),
+) as typeof defaultEnv;
+
+const authzUrl = env.PUBLIC_URL + '/authorize';
 
 function randomStringWithEntropy(entropy: number) {
   const b = new Uint8Array(entropy);
@@ -69,7 +79,7 @@ interface SHLinkAddFileRequest {
 const router = new Router()
   .get('/', async (context) => {
     await send(context, context.request.url.pathname, {
-      root: `//home/jmandel/work/vaxx.link/server/static`,
+      root: `${Deno.cwd()}/static/`,
       index: 'index.html',
     });
   })
