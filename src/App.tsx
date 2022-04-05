@@ -49,10 +49,15 @@ interface SHLinkStatus {
   url: string;
   token: string;
   managementToken: string;
-  log: {
+  connections: {
     name: string;
-    whenEpochSeconds: number[];
-  }[];
+    active: boolean;
+    jwk: Record<string, unknown>;
+    log: {
+      url: string;
+      date: number;
+    };
+  }[]
 }
 
 interface SHLink {
@@ -95,7 +100,7 @@ function generateLinkUrl(shl: SHLink) {
   const qrJson = JSON.stringify(qrPayload);
   const qrEncoded = b64urlencode(qrJson);
 
-  const qrPrefixed = 'shclink:/' + qrEncoded;
+  const qrPrefixed = 'shlink:/' + qrEncoded;
   const hostedLandingPage = 'https://shared.vaxx.link#';
   const link = (hostedLandingPage || '') + qrPrefixed;
   return link;
@@ -114,6 +119,7 @@ interface DataServer {
 }
 
 const fakeServerDb: Record<string, Omit<SHLink, 'id' | 'name' | 'encryptionKey'>> = {};
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const fakeServer: DataServer = {
   storeShc: async (shl, shc) => {
     const config = fakeServerDb[shl.serverStatus!.managementToken];
@@ -128,7 +134,7 @@ const fakeServer: DataServer = {
       token: b64urlencode(fakeAccessToken),
       managementToken: '' + Math.random(),
       active: true,
-      log: [],
+      connections: [],
     };
     fakeServerDb[serverStatus.managementToken] = {
       uploads: {},
@@ -139,6 +145,32 @@ const fakeServer: DataServer = {
     return Promise.resolve(JSON.parse(JSON.stringify(serverStatus)));
   },
 };
+
+const realServerBaseUrl = `http://localhost:8000/api`
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const realServer: DataServer = {
+  storeShc: async (shl, shc) => {
+    const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.token}/file`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/smart-health-card",
+        "authorization": `Bearer ${shl.serverStatus?.managementToken}`
+      },
+      body: JSON.stringify({verifiableCredential: [shc.jws]})
+    });
+    return result.json()
+  },
+  createShl: async (shl) => {
+    const result = await fetch(`${realServerBaseUrl}/shl`, {
+      method: "POST",
+      body: JSON.stringify(shl) 
+    });
+    return result.json()
+  },
+};
+
+
 
 let idGenerator = 100;
 class ServerStateSync {
@@ -158,6 +190,7 @@ class ServerStateSync {
 
   async createShl(datasetId: number, serverConfig: SHLinkConfig) {
     let serverStatus = await this.server.createShl(serverConfig);
+    console.log("Created", serverStatus)
     let newShlinkId = idGenerator++;
     let encryptionKey;
     if (serverConfig.encrypted) {
@@ -375,7 +408,7 @@ export function SHLinks() {
                 </em>
               </li>
               <li>
-                <em>Access count: {shl.serverStatus?.log.flatMap((l) => l.whenEpochSeconds).length}</em>
+                <em>Access count: {shl.serverStatus?.connections.flatMap((l) => l.log).length}</em>
                 <br></br>
                 <button>See acccess log</button>
               </li>
