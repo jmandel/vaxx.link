@@ -146,7 +146,7 @@ const fakeServer: DataServer = {
   },
 };
 
-const realServerBaseUrl = `http://localhost:8000/api`
+const realServerBaseUrl = process.env.REACT_APP_REAL_SERVER_BASE || `http://localhost:8000/api`
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const realServer: DataServer = {
@@ -579,7 +579,7 @@ function App() {
   }, [store]);
 
   useEffect(() => {
-    serverSyncer = new ServerStateSync(storeRef, dispatch, fakeServer);
+    serverSyncer = new ServerStateSync(storeRef, dispatch, realServer);
     defaultImmunizations.then((vs) => vs.forEach((vaccine) => dispatch({ type: 'vaccine-add', vaccine })));
   }, []);
 
