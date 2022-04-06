@@ -185,6 +185,7 @@ const shlApiRouter = new Router()
     };
   })
   .post('/shl/:shlId/file', async (context) => {
+
     const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1];
     const newFileBody = await context.request.body({ type: 'bytes' });
 
@@ -193,10 +194,11 @@ const shlApiRouter = new Router()
       throw new Error(`Can't manage SHLink ` + context.params.shlId);
     }
 
-    shl.files = shl.files!.concat({
+    const newFile = {
       contentType: context.request.headers.get('content-type')!,
       content: await newFileBody.value,
-    });
+    }
+    shl.files = shl.files!.concat([newFile]);
 
     context.response.body = {
       ...shl,
@@ -261,7 +263,6 @@ const shlClientRouter = new Router()
       .setJti(randomStringWithEntropy(32))
       .sign(clientKey);
 
-    console.log("Retrieving", config, state, clientAssertion)
     const tokenResponse = await fetch(`${state.tokenEndpoint}`, {
       method: 'POST',
       headers: {
