@@ -6,5 +6,7 @@
 
 
 # Run
-
     deno run --allow-env="PORT" --allow-read="./static" --allow-net --watch server.ts
+
+# Test
+    deno test --allow-env="PORT" --allow-read="./static" --allow-net

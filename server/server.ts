@@ -1,82 +1,27 @@
-import { base64url, jose, oak, cors, queryString } from './deps.ts';
-const { Application, Router, send } = oak;
+import env from './config.ts';
+import { jose, oak, cors, base64url, queryString } from './deps.ts';
+import { inflate } from 'https://deno.land/x/denoflate/mod.ts';
+
+import {
+  AccessToken,
+  AccessTokenResponse,
+  HealthLink,
+  HealthLinkConfig,
+  OAuthRegisterPayload,
+  OAuthRegisterResponse,
+  SHLClientConnectRequest,
+  SHLClientRetrieveRequest,
+  SHLClientRetrieveResponse,
+  SHLClientStateDecoded,
+  SHLDecoded,
+} from './types.ts';
+import { decodeBase64urlToJson, decodeToJson, randomStringWithEntropy } from './util.ts';
+const { Application, Router } = oak;
 const { oakCors } = cors;
-const { encode } = base64url;
-
-const defaultEnv = {
-  PUBLIC_URL: 'http://localhost:8000',
-} as const;
-
-async function envOrDefault(variable: string, defaultValue: string) {
-  const havePermission = (await Deno.permissions.query({ name: 'env', variable })).state === 'granted';
-  return (havePermission && Deno.env.get(variable)) || defaultValue;
-}
-
-const env = Object.fromEntries(
-  await Promise.all(Object.entries(defaultEnv).map(async ([k, v]) => [k, await envOrDefault(k, v)])),
-) as typeof defaultEnv;
-
-function randomStringWithEntropy(entropy: number) {
-  const b = new Uint8Array(entropy);
-  crypto.getRandomValues(b);
-  return encode(b.buffer);
-}
-
-interface HealthLinkConnection {
-  clientId: string;
-  active: boolean;
-  registration: {
-    name: string;
-    jwks: jose.JSONWebKeySet;
-  };
-  log: {
-    url: string;
-    date: number;
-  }[];
-}
-
-interface HealthLinkFile {
-  contentType: string;
-  content: Uint8Array;
-}
-
-interface HealthLinkConfig {
-  pin?: string;
-  exp?: number;
-  encrypted: boolean;
-}
-
-interface HealthLink {
-  config: HealthLinkConfig;
-  active: boolean;
-  url: string;
-  token: string;
-  managementToken: string;
-  files?: HealthLinkFile[];
-  connections: HealthLinkConnection[];
-}
 
 const DbLinks = new Map<string, HealthLink>();
-
-interface AccessToken{
-  accessToken: string,
-  exp: number,
-  shlink: string
-}
-
-interface ResourceAccessRight {
-  type: "shlink-view",
-  locations: string[]
-}
-
-interface AccessTokenResponse {
-    scope: "__shlinks",
-    access_token: string,
-    expires_in: number,
-    access: ResourceAccessRight[]
-}
-
 const DbTokens = new Map<string, AccessToken>();
+
 function createDbLink(config: HealthLinkConfig): HealthLink {
   return {
     config,
@@ -87,22 +32,6 @@ function createDbLink(config: HealthLinkConfig): HealthLink {
     files: [],
     connections: [],
   };
-}
-interface SHLinkAddFileRequest {
-  id: string;
-  files: HealthLinkFile[];
-}
-
-interface OAuthRegisterPayload {
-  token_endpoint_auth_method: 'private_key_jwt';
-  grant_types: ['client_credentials'];
-  jwks: jose.JSONWebKeySet;
-  client_name?: string;
-  contacts?: string[];
-}
-
-interface OAuthRegisterResponse extends OAuthRegisterPayload {
-  client_id: string;
 }
 
 function lookupClientId(clientId: string) {
@@ -116,18 +45,18 @@ function lookupClientId(clientId: string) {
   return null;
 }
 
-function lookupAuthzToken(authzToken: string, shlId: string){
+function lookupAuthzToken(authzToken: string, shlId: string) {
   const entry = DbTokens.get(authzToken);
-  if (!entry || entry.exp < new Date().getTime()/1000) {
-    console.log("No token or expired", entry, authzToken, DbTokens)
+  if (!entry || entry.exp < new Date().getTime() / 1000) {
+    console.log('No token or expired', entry, authzToken, DbTokens);
     DbTokens.delete(authzToken);
-    return null
+    return null;
   }
-  const shl = DbLinks.get(entry.shlink)
+  const shl = DbLinks.get(entry.shlink);
   if (shl?.token !== shlId) {
     return null;
   }
-  return  shl;
+  return shl;
 }
 
 const oauthRouter = new Router()
@@ -197,37 +126,29 @@ const oauthRouter = new Router()
     const clientJwks = clientUnchecked!.client.registration.jwks;
     const joseJwks = jose.createLocalJWKSet(clientJwks);
 
+    const _tokenVerified = await jose.jwtVerify(clientAssertion, joseJwks, {
+      clockTolerance: '5 minutes',
+      audience: `${env.PUBLIC_URL}/oauth/token`,
+    });
 
-    const { payload: tokenPayload, protectedHeader: tokenProtectedHeader } = await jose.jwtVerify(
-      clientAssertion,
-      joseJwks,
-      {
-        clockTolerance: '5 minutes',
-        audience: `${env.PUBLIC_URL}/oauth/token`,
-      },
-    );
-
-    console.log('validated', tokenPayload, tokenProtectedHeader);
-
-    const client = clientUnchecked! // rename to clarify status
+    const client = clientUnchecked!; // rename to affirm validated status
     const token: AccessToken = {
       accessToken: randomStringWithEntropy(32),
       exp: new Date().getTime() / 1000 + 300,
-      shlink: client.shl.token
-    }
+      shlink: client.shl.token,
+    };
 
-    DbTokens.set(token.accessToken, token)
-    console.log("Dbt", DbTokens)
+    DbTokens.set(token.accessToken, token);
 
     context.response.body = {
-      scope: "__shlinks",
+      scope: '__shlinks',
       access_token: token.accessToken,
       expires_in: 300,
       access: (client.shl.files || []).map((_f, i) => ({
-        type: "shlink-view",
+        type: 'shlink-view',
         locations: [`${env.PUBLIC_URL}/api/shl/${client.shl.token}/file/${i}`],
-      }))
-    }
+      })),
+    };
   });
 
 const shlApiRouter = new Router()
@@ -242,11 +163,11 @@ const shlApiRouter = new Router()
     };
   })
   .get('/shl/:shlId/file/:fileIndex', (context) => {
-    const authzToken = context.request.headers.get("authorization")!.split(/bearer /i)[1];
+    const authzToken = context.request.headers.get('authorization')!.split(/bearer /i)[1];
     const shl = lookupAuthzToken(authzToken, context.params.shlId);
     if (!shl) {
-      console.log("Invalid token", authzToken, DbTokens.get(authzToken))
-      return context.response.status = 401;
+      console.log('Invalid token', authzToken, DbTokens.get(authzToken));
+      return (context.response.status = 401);
     }
 
     const file = shl.files![Number(context.params.fileIndex)];
@@ -293,16 +214,107 @@ const shlApiRouter = new Router()
     };
   });
 
+const shlClientRouter = new Router()
+  .post('/connect', async (context) => {
+    const config: SHLClientConnectRequest = await context.request.body({ type: 'json' }).value;
+    const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
+    const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
+    const clientKey = await jose.generateKeyPair('ES256', { extractable: true });
+    const discoveryResponse = await fetch(`${parsedShl.oauth.url}/.well-known/smart-configuration`);
+    const discovery: { token_endpoint: string; registration_endpoint: string } = await discoveryResponse.json();
+    const registeredResponse = await fetch(`${discovery!.registration_endpoint}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${parsedShl.oauth.token}`,
+      },
+      body: JSON.stringify({
+        token_endpoint_auth_method: 'private_key_jwt',
+        grant_types: ['client_credentials'],
+        jwks: {
+          keys: [await jose.exportJWK(clientKey.publicKey)],
+        },
+        client_name: config.clientName, // optional
+        contacts: config.clientContact ? [config.clientContact] : undefined,
+      }),
+    });
+
+    const registered = (await registeredResponse.json()) as OAuthRegisterResponse;
+    const stateDecoded: SHLClientStateDecoded = {
+      tokenEndpoint: discovery.token_endpoint,
+      clientId: registered.client_id,
+      privateJwk: await jose.exportJWK(clientKey.privateKey),
+    };
+    const state = base64url.encode(JSON.stringify(stateDecoded));
+    context.response.body = { state };
+  })
+  .post('/retrieve', async (context) => {
+    const config: SHLClientRetrieveRequest = await context.request.body({ type: 'json' }).value;
+    const state: SHLClientStateDecoded = decodeBase64urlToJson<SHLClientStateDecoded>(config.state);
+    const clientKey = await jose.importJWK(state.privateJwk, "ES256");
+    const clientAssertion = await new jose.SignJWT({ })
+      .setIssuer(state.clientId)
+      .setSubject(state.clientId)
+      .setAudience(`${env.PUBLIC_URL}/oauth/token`)
+      .setExpirationTime('3 minutes')
+      .setProtectedHeader({ alg: 'ES256' })
+      .setJti(randomStringWithEntropy(32))
+      .sign(clientKey);
+
+    const tokenResponse = await fetch(`${state.tokenEndpoint}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'Shlink-Pin': '1234',
+      },
+      body: queryString.stringify({
+        scope: '__shlinks',
+        grant_type: 'client_credentials',
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: clientAssertion,
+      }),
+    });
+
+    const tokenResponseJson = (await tokenResponse.json()) as AccessTokenResponse;
+
+    const allFiles = await Promise.all(
+      tokenResponseJson.access
+        .flatMap((a) => a.locations)
+        .map(
+          (l) =>
+            fetch(l, {
+              headers: {
+                authorization: `Bearer ${tokenResponseJson.access_token}`,
+              },
+            }).then(f => f.text()) // TODO deal with other content types
+        ),
+    );
+
+    const allShcJws = allFiles.flatMap((f) => JSON.parse(f)['verifiableCredential'] as string);
+
+    const result: SHLClientRetrieveResponse = {
+      shcs: allShcJws.map((jws) => {
+        const compressed = base64url.decode(jws.split('.')[1]);
+        const decompressed = decodeToJson(inflate(compressed));
+        return {
+          jws,
+          decoded: decompressed,
+          validated: false,
+        };
+      }),
+    };
+
+    context.response.body = result;
+  });
+
 const app = new Application();
 app.use(oakCors());
 
 const appRouter = new Router()
-  .get('/', async (context) => {
-    await send(context, context.request.url.pathname, {
-      root: `${Deno.cwd()}/static/`,
-      index: 'index.html',
-    });
+  .get('/', (context) => {
+    context.response.body = 'Index';
   })
+  .use(`/client`, shlClientRouter.routes(), shlClientRouter.allowedMethods())
   .use(`/api`, shlApiRouter.routes(), shlApiRouter.allowedMethods())
   .use(`/oauth`, oauthRouter.routes(), oauthRouter.allowedMethods())
   .get(`/.well-known/smart-configuration`, (context) => {
@@ -319,100 +331,7 @@ const appRouter = new Router()
   });
 
 app.use(appRouter.routes());
-
+export const controller = new AbortController();
 console.info('CORS-enabled web server listening on port 8000');
-app.listen({ port: parseInt(Deno.env.get('PORT') || '8000') });
-
-async function test() {
-  console.log('Testing server');
-  const clientKey = await jose.generateKeyPair('ES256');
-
-  const shlResponse = await fetch(`${env.PUBLIC_URL}/api/shl`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      encrypted: true,
-      pin: '1234',
-    }),
-  });
-
-  const shl = (await shlResponse.json()) as HealthLink;
-  console.log('SHL', shl);
-
- const shlFileResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl.token}/file`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'authorization': `Bearer ${shl.managementToken}`
-    },
-    body: JSON.stringify({arbitrary: true, answer: 42}),
-  });
-
-  const shlFile = await shlFileResponse.json();
-  console.log("SHL file response", shlFile)
-  
-
-  const discoveryResponse = await fetch(`${shl.url}/.well-known/smart-configuration`);
-  const discovery: { token_endpoint: string; registration_endpoint: string } = await discoveryResponse.json();
-
-  const registeredResponse = await fetch(`${discovery.registration_endpoint}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${shl.token}`,
-    },
-    body: JSON.stringify({
-      token_endpoint_auth_method: 'private_key_jwt',
-      grant_types: ['client_credentials'],
-      jwks: {
-        keys: [await jose.exportJWK(clientKey.publicKey)],
-      },
-      client_name: "Dr. B's Quick Response Squared", // optional
-      contacts: ['drjones@clinic.com'], // optional
-    }),
-  });
-
-  const registered = (await registeredResponse.json()) as OAuthRegisterResponse;
-  console.log('Registered', JSON.stringify(registered, null, 2));
-
-  const clientAssertion = await new jose.SignJWT({
-    sub_jwk: await jose.exportJWK(clientKey.publicKey),
-  })
-    .setIssuer(registered.client_id)
-    .setSubject(registered.client_id)
-    .setAudience(`${env.PUBLIC_URL}/oauth/token`)
-    .setExpirationTime('3 minutes')
-    .setProtectedHeader({ alg: 'ES256' })
-    .setJti(randomStringWithEntropy(32))
-    .sign(clientKey.privateKey);
-
-  console.log('Generated assertion', clientAssertion);
-  const tokenResponse = await fetch(`${discovery.token_endpoint}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      'Shlink-Pin': '1234',
-    },
-    body: queryString.stringify({
-      scope: '__shlinks',
-      grant_type: 'client_credentials',
-      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      client_assertion: clientAssertion,
-    }),
-  });
-
-  const tokenResponseJson = await tokenResponse.json() as AccessTokenResponse;
-  console.log("Access Token Response", tokenResponseJson)
-
-  const fileResponse = await fetch(tokenResponseJson.access[0].locations[0], {
-    headers: {
-      'Authorization': `Bearer ${tokenResponseJson.access_token}`
-    }
-  })
-
-  const file = await fileResponse.text()
-  console.log("got filef", fileResponse.status, file)
-}
-
+app.listen({ port: parseInt(Deno.env.get('PORT') || '8000'), signal: controller.signal });
+export default app;
