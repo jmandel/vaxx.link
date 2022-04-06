@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build and Deploy Client to GH Pages
 on: [push]
 jobs:
   build-and-deploy:

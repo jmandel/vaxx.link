@@ -1,4 +1,4 @@
-name: Deploy vaxx.link server
+name: Build and Deploy Server to k8s
 on:
   push:
     branches:
