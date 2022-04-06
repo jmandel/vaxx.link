@@ -28,4 +28,3 @@ jobs:
           -t ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink:latest
         docker push ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink
         kubectl -n smart rollout restart deployment/vaxxlink
-
