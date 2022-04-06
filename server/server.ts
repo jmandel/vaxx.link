@@ -255,12 +255,13 @@ const shlClientRouter = new Router()
     const clientAssertion = await new jose.SignJWT({ })
       .setIssuer(state.clientId)
       .setSubject(state.clientId)
-      .setAudience(`${env.PUBLIC_URL}/oauth/token`)
+      .setAudience(state.tokenEndpoint)
       .setExpirationTime('3 minutes')
       .setProtectedHeader({ alg: 'ES256' })
       .setJti(randomStringWithEntropy(32))
       .sign(clientKey);
 
+    console.log("Retrieving", config, state, clientAssertion)
     const tokenResponse = await fetch(`${state.tokenEndpoint}`, {
       method: 'POST',
       headers: {
