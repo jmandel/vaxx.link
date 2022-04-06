@@ -27,4 +27,4 @@ jobs:
           -t ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink:$GITHUB_SHA \
           -t ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink:latest
         docker push ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink
-        kubectl -n smart rollout restart deployment/vaxxlink
+        kubectl -n vaxxlink rollout restart deployment/vaxxlink
