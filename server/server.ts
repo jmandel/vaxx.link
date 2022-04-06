@@ -1,6 +1,6 @@
 import env from './config.ts';
 import { jose, oak, cors, base64url, queryString } from './deps.ts';
-import { inflate } from 'https://deno.land/x/denoflate/mod.ts';
+import { inflate } from "https://deno.land/x/denoflate@1.2.1/mod.ts";
 
 import {
   AccessToken,

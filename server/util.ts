@@ -1,5 +1,5 @@
 import { base64url } from './deps.ts';
-const { encode, decode } = base64url;
+const { encode } = base64url;
 
 export function randomStringWithEntropy(entropy: number) {
   const b = new Uint8Array(entropy);
