@@ -73,4 +73,4 @@ spec:
         - name: PORT
           value: "8000"
         - name: PUBLIC_URL
-          value: "https://vaxx.link"
+          value: "https://api.vaxx.link"

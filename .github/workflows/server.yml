@@ -3,25 +3,23 @@ on:
   push:
     branches:
     - main
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-
     - uses: azure/docker-login@v1
       with:
         login-server: ${{ secrets.CONTAINER_REGISTRY }}
-        username: ${{ fromJSON(secrets.AZURE_CREDENTIALS_21).appId }}
-        password: ${{ fromJSON(secrets.AZURE_CREDENTIALS_21).password }}
-
-    - uses: azure/aks-set-context@v2
+        username: ${{ fromJSON(secrets.AZURE_CREDENTIALS_21).clientId }}
+        password: ${{ fromJSON(secrets.AZURE_CREDENTIALS_21).clientSecret }}
+    - uses: azure/login@v1
       with:
-        creds: '${{ secrets.AZURE_CREDENTIALS_21 }}'
+        creds: ${{ secrets.AZURE_CREDENTIALS_21 }}
+    - uses: azure/aks-set-context@v2.0
+      with:
         cluster-name: ${{ secrets.CLUSTER_NAME_21 }}
         resource-group: ${{ secrets.RESOURCE_GROUP }}
-
     - name: Build and rollout to CI
       working-directory: ./server
       run: |
@@ -30,3 +28,4 @@ jobs:
           -t ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink:latest
         docker push ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink
         kubectl -n smart rollout restart deployment/vaxxlink
+
