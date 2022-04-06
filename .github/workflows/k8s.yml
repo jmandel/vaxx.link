@@ -1,0 +1,76 @@
+# kubectl apply -f k8s.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vaxxlink
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+  name: vaxxlink-ingress
+  namespace: vaxxlink
+spec:
+  rules:
+  - host: api.vaxx.link
+    http:
+      paths:
+      - backend:
+          serviceName: vaxxlink
+          servicePort: 80
+        path: /(.*)
+  tls:
+  - hosts:
+    - api.vaxx.link
+    secretName: tls-secret
+status:
+  loadBalancer:
+    ingress:
+    - {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: vaxxlink
+  name: vaxxlink
+spec:
+  selector:
+    app: vaxxlink
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaxxlink
+  namespace: vaxxlink
+  labels:
+    app: vaxxlink
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vaxxlink
+  template:
+    metadata:
+      labels:
+        app: vaxxlink
+    spec:
+      volumes:
+      containers:
+      - name: shlapi
+        image: argonautcontainerregistry.azurecr.io/vaxxlink:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: PUBLIC_URL
+          value: "https://vaxx.link"
