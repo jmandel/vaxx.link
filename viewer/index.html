@@ -1,1 +1,67 @@
-<html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark"><head><meta charset="utf-8"><script type="module" src="index.a1e7b7df.js"></script></head><body> <h1>Retrieve Data for SMART Health Link</h1> <div> <input id="clientNameInput" value="Example SHL Client"><br> <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onpaste="setTimeout(processInput)" onchange="processInput()"> <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width:5rem;opacity:20%" onchange="processInput()"> <br> <div id="result"> </div> <script type="module">window.processInput=async function(){if(await shl.needPin({shl:n.value})){if(t.setAttribute("style","width: 5rem; opacity: 100%;"),""===t.value)return void t.focus()}else t.setAttribute("style","width: 5rem; opacity: 20%");console.log("Connect",n.value,t.value);const i=await shl.connect({shl:n.value,pin:t.value,clientName:e.value}),c=await shl.pull(i);console.log("Connected",c),l.innerHTML=`\n        <div>\n          ${c.shcs.length} Health Cards retrieved for \n          <pre>${JSON.stringify(c.shcs[0].decoded.vc.credentialSubject.fhirBundle.entry[0].resource,null,2)}</pre>\n          <h2>Details</h2>\n          <ul>\n            ${c.shcs.flatMap((e=>e.decoded.vc.credentialSubject.fhirBundle.entry.slice(1))).map((e=>e.resource)).map((e=>`<li><pre>${JSON.stringify(e,null,2)}</pre></li>`)).join(" ")}\n          </ul>\n        </div>`};const e=document.getElementById("clientNameInput"),n=document.getElementById("shlInput"),t=document.getElementById("pinInput"),l=document.getElementById("result"),i=window.location.hash.match(/shlink:\/.*/);i&&(shlInput.value=i[0],shlInput.onchange());</script> </div></body></html>
+<html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <h1>Retrieve Data for SMART Health Link</h1>
+    <div>
+      <input id="clientNameInput" value="Example SHL Client" /><br />
+      <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onpaste="setTimeout(processInput)" onchange="processInput()" />
+      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" onchange="processInput()" />
+      <br />
+      <div id="result" />
+    </div>
+
+    <script type="module">
+      import * as shl from './index.js';
+      import {verify} from './shc-decoder.js';
+      console.log("SH", shl);
+      window.processInput = processInput;
+
+      const clientNameText = document.getElementById('clientNameInput');
+      const shlText = document.getElementById('shlInput');
+      const pinText = document.getElementById('pinInput');
+      const result = document.getElementById('result');
+
+      const linkInUrl = window.location.hash.match(/shlink:\/.*/);
+      if (linkInUrl) {
+        shlText.value = linkInUrl[0];
+        shlText.onchange();
+      }
+
+      async function processInput() {
+        const needPin = await shl.needPin({ shl: shlText.value });
+        if (needPin) {
+          pinText.setAttribute('style', 'width: 5rem; opacity: 100%;');
+          if (pinText.value === '') {
+            pinText.focus();
+            return;
+          }
+        } else {
+          pinText.setAttribute('style', 'width: 5rem; opacity: 20%');
+        }
+        console.log('Connect', shlText.value, pinText.value);
+        const connection = await shl.connect({
+          shl: shlText.value,
+          pin: pinText.value,
+          clientName: clientNameText.value,
+        });
+        const pulled = await shl.pull(connection);
+        const decoded = await Promise.all(pulled.shcs.map(verify))
+        result.innerHTML = `
+        <div>
+          ${decoded.length} Health Cards retrieved for 
+          <pre>${JSON.stringify(decoded[0].fhirbundle.entry[0].resource, null, 2)}</pre>
+          <h2>Details</h2>
+          <ul>
+            ${decoded
+              .flatMap((s) => s.fhirbundle.entry.slice(0))
+              .map((s) => s.resource)
+              .map((r) => `<li><pre>${JSON.stringify(r, null, 2)}</pre></li>`)
+              .join(' ')}
+          </ul>
+        </div>`;
+      }
+    </script>
+  </body>
+</html>
