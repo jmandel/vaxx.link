@@ -1,53 +1,62 @@
-<html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark" >
+<html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark">
   <head>
-    <meta charset="utf-8">
-    <script type="module" src="./index.ts"> </script>
+    <meta charset="utf-8" />
+    <script type="module" src="./index.ts"></script>
   </head>
   <body>
     <h1>Retrieve Data for SMART Health Link</h1>
     <div>
-
-      <input id="clientNameInput" value="Example SHL Client"/><br/>
-      <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onKeyUp="processInput()"/>
-      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%;" onKeyUp="processInput()"/>
-      <br>
+      <input id="clientNameInput" value="Example SHL Client" /><br />
+      <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onKeyUp="processInput()" />
+      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" onKeyUp="processInput()" />
+      <br />
       <div id="result" />
-      </div>
+    </div>
 
-      <script>
-        const clientNameText = document.getElementById("clientNameInput");
-        const shlText = document.getElementById("shlInput");
-        const pinText = document.getElementById("pinInput");
-        const result = document.getElementById("result");
-        async function processInput() {
-                  const needPin = await shl.needPin({shl: shlText.value});
-                  if (needPin){
-                    pinText.setAttribute("style", "width: 5rem; opacity: 100%;")
-                    if (pinText.value === "") {
-                      console.log("PTV", pinText.value, document.getElementById("pinInput").value)
-                      return;
-                    }
-                  } else {
-                    pinText.setAttribute("style", "width: 5rem; opacity: 20%")
-                  }
-                  console.log("Connect", shlText.value, pinText.value)
-                  const connection = await shl.connect({shl: shlText.value, pin: pinText.value, clientName: clientNameText.value});
-                  const pulled = await shl.pull(connection);
-                  console.log("Connected", pulled)
-                  result.innerHTML = `<div>
-       ${pulled.shcs.length} Health Cards retrieved for 
-       <pre>${
-    JSON.stringify(pulled.shcs[0].decoded.vc.credentialSubject.fhirBundle.entry[0].resource, null, 2)
-  }</pre>
+    <script>
+      const clientNameText = document.getElementById('clientNameInput');
+      const shlText = document.getElementById('shlInput');
+      const pinText = document.getElementById('pinInput');
+      const result = document.getElementById('result');
 
-       <h2>Details</h2>
-       <ul>
-         ${pulled
-         .shcs
-         .flatMap(s => s.decoded.vc.credentialSubject.fhirBundle.entry.slice(1))
-         .map(s =>s.resource).map(r => `<li><pre>${JSON.stringify(r, null, 2)}</pre></li>`).join(" ")}
-       </ul>
-                  </div>` 
-                  }
-      </script>
+      const linkInUrl = window.location.hash.match(/shlink:\/.*/);
+      if (linkInUrl) {
+        shlInput.value = linkInUrl[0];
+      }
+
+      async function processInput() {
+        const needPin = await shl.needPin({ shl: shlText.value });
+        if (needPin) {
+          pinText.setAttribute('style', 'width: 5rem; opacity: 100%;');
+          if (pinText.value === '') {
+            pinText.focus();
+            return;
+          }
+        } else {
+          pinText.setAttribute('style', 'width: 5rem; opacity: 20%');
+        }
+        console.log('Connect', shlText.value, pinText.value);
+        const connection = await shl.connect({
+          shl: shlText.value,
+          pin: pinText.value,
+          clientName: clientNameText.value,
+        });
+        const pulled = await shl.pull(connection);
+        console.log('Connected', pulled);
+        result.innerHTML = `
+        <div>
+          ${pulled.shcs.length} Health Cards retrieved for 
+          <pre>${JSON.stringify(pulled.shcs[0].decoded.vc.credentialSubject.fhirBundle.entry[0].resource, null, 2)}</pre>
+          <h2>Details</h2>
+          <ul>
+            ${pulled.shcs
+              .flatMap((s) => s.decoded.vc.credentialSubject.fhirBundle.entry.slice(1))
+              .map((s) => s.resource)
+              .map((r) => `<li><pre>${JSON.stringify(r, null, 2)}</pre></li>`)
+              .join(' ')}
+          </ul>
+        </div>`;
+      }
+    </script>
   </body>
+</html>
