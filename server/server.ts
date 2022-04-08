@@ -3,7 +3,7 @@ import { jose, oak, cors, base64url, queryString } from './deps.ts';
 import { inflate } from "https://deno.land/x/denoflate@1.2.1/mod.ts";
 
 import {
-  AccessToken,
+  AccessToken as AccessTokenStored,
   AccessTokenResponse,
   HealthLink,
   HealthLinkConfig,
@@ -20,7 +20,7 @@ const { Application, Router } = oak;
 const { oakCors } = cors;
 
 const DbLinks = new Map<string, HealthLink>();
-const DbTokens = new Map<string, AccessToken>();
+const DbTokens = new Map<string, AccessTokenStored>();
 
 function createDbLink(config: HealthLinkConfig): HealthLink {
   return {
@@ -96,7 +96,6 @@ const oauthRouter = new Router()
 
     context.response.body = {
       client_id: clientId,
-      scope: '__shlinks',
       grant_types: ['client_credentials'],
       jwks: config.jwks,
       client_name: config.client_name,
@@ -132,23 +131,23 @@ const oauthRouter = new Router()
     });
 
     const client = clientUnchecked!; // rename to affirm validated status
-    const token: AccessToken = {
+    const token: AccessTokenStored = {
       accessToken: randomStringWithEntropy(32),
       exp: new Date().getTime() / 1000 + 300,
       shlink: client.shl.token,
     };
 
     DbTokens.set(token.accessToken, token);
-
-    context.response.body = {
-      scope: '__shlinks',
+    let acccssTokenResponse: AccessTokenResponse = {
       access_token: token.accessToken,
       expires_in: 300,
-      access: (client.shl.files || []).map((_f, i) => ({
+      authorization_details: [{
         type: 'shlink-view',
-        locations: [`${env.PUBLIC_URL}/api/shl/${client.shl.token}/file/${i}`],
-      })),
-    };
+        locations: (client.shl.files || []).map((_f, i) =>`${env.PUBLIC_URL}/api/shl/${client.shl.token}/file/${i}`)
+      }]
+    }
+
+    context.response.body = acccssTokenResponse;
   });
 
 const shlApiRouter = new Router()
@@ -270,7 +269,6 @@ const shlClientRouter = new Router()
         'Shlink-Pin': '1234',
       },
       body: queryString.stringify({
-        scope: '__shlinks',
         grant_type: 'client_credentials',
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: clientAssertion,
@@ -280,7 +278,7 @@ const shlClientRouter = new Router()
     const tokenResponseJson = (await tokenResponse.json()) as AccessTokenResponse;
 
     const allFiles = await Promise.all(
-      tokenResponseJson.access
+      tokenResponseJson.authorization_details
         .flatMap((a) => a.locations)
         .map(
           (l) =>

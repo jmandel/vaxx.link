@@ -46,10 +46,9 @@ export interface ResourceAccessRight {
 }
 
 export interface AccessTokenResponse {
-    scope: "__shlinks",
     access_token: string,
     expires_in: number,
-    access: ResourceAccessRight[]
+    authorization_details: ResourceAccessRight[]
 }
 
 

@@ -53,6 +53,7 @@ Deno.test({
 
     let registered: any;
     await t.step('Register with SHL Server', async function () {
+      const pk = await jose.exportJWK(clientKey.publicKey);
       const registeredResponse = await fetch(`${discovery!.registration_endpoint}`, {
         method: 'POST',
         headers: {
@@ -63,7 +64,7 @@ Deno.test({
           token_endpoint_auth_method: 'private_key_jwt',
           grant_types: ['client_credentials'],
           jwks: {
-            keys: [await jose.exportJWK(clientKey.publicKey)],
+            keys: [pk],
           },
           client_name: "Dr. B's Quick Response Squared", // optional
           contacts: ['drjones@clinic.com'], // optional
@@ -72,14 +73,12 @@ Deno.test({
 
       assertions.assertEquals(registeredResponse.status, 200)
       registered = (await registeredResponse.json()) as OAuthRegisterResponse;
-      // console.log('Registered', JSON.stringify(registered, null, 2));
+      console.log('Registered', JSON.stringify(registered, null, 2));
     });
 
     let tokenResponseJson: any;
     await t.step('Obtain access token from SHL server', async function () {
-      const clientAssertion = await new jose.SignJWT({
-        sub_jwk: await jose.exportJWK(clientKey.publicKey),
-      })
+      const clientAssertion = await new jose.SignJWT({ })
         .setIssuer(registered.client_id)
         .setSubject(registered.client_id)
         .setAudience(`${env.PUBLIC_URL}/oauth/token`)
@@ -88,7 +87,7 @@ Deno.test({
         .setJti(randomStringWithEntropy(32))
         .sign(clientKey.privateKey);
 
-      // console.log('Generated assertion', clientAssertion);
+      console.log('Generated assertion', clientAssertion);
       const tokenResponse = await fetch(`${discovery.token_endpoint}`, {
         method: 'POST',
         headers: {
@@ -105,11 +104,12 @@ Deno.test({
 
       assertions.assertEquals(tokenResponse.status, 200)
       tokenResponseJson = (await tokenResponse.json()) as AccessTokenResponse;
-      // console.log('Access Token Response', tokenResponseJson);
+      // console.log('Access Token Response');
+      // console.log(JSON.stringify(tokenResponseJson, null, 2));
     });
 
     await t.step('Download SHC file using access token', async function () {
-      const fileResponse = await fetch(tokenResponseJson.access[0].locations[0], {
+      const fileResponse = await fetch(tokenResponseJson.authorization_details[0].locations[0], {
         headers: {
           Authorization: `Bearer ${tokenResponseJson.access_token}`,
         },

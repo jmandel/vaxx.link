@@ -101,7 +101,7 @@ function generateLinkUrl(shl: SHLink) {
   const qrEncoded = b64urlencode(qrJson);
 
   const qrPrefixed = 'shlink:/' + qrEncoded;
-  const hostedLandingPage = 'https://shared.vaxx.link#';
+  const hostedLandingPage = 'https://demo.vaxx.link/viewer#';
   const link = (hostedLandingPage || '') + qrPrefixed;
   return link;
 }

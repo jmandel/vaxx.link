@@ -73,10 +73,9 @@ export function decodeToJson<T>(s: Uint8Array): T {
 }
 
 export interface AccessTokenResponse {
-    scope: "__shlinks",
     access_token: string,
     expires_in: number,
-    access: ResourceAccessRight[]
+    authorization_details: ResourceAccessRight[]
 }
 
 export interface ResourceAccessRight {
@@ -157,7 +156,7 @@ async function pull(config: SHLClientRetrieveRequest){
     const tokenResponseJson = (await tokenResponse.json()) as AccessTokenResponse;
 
     const allFiles = await Promise.all(
-      tokenResponseJson.access
+      tokenResponseJson.authorization_details
         .flatMap((a) => a.locations)
         .map(
           (l) =>
