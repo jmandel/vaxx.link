@@ -1,0 +1,134 @@
+<html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark" >
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <h1>Retrieve Data for SMART Health Link</h1>
+    <div id="inputDiv">
+      <input id="clientNameInput" value="Example SHL Client" /><br />
+      <input
+        id="shlInput"
+        autofocus
+        placeholder="Paste SMART Health Link"
+        onpaste="setTimeout(processInput)"
+        onchange="processInput()"
+      />
+      <input
+        class="hidden"
+        id="pinInput"
+        placeholder="Enter PIN"
+        style="width: 5rem; opacity: 20%"
+        onchange="processInput()"
+      />
+      <br />
+      <div id="result" />
+    </div>
+
+    <script type="module">
+      import * as shl from "https://demo.vaxx.link/viewer/index.js";
+      import { verify } from "https://demo.vaxx.link/viewer/shc-decoder.js";
+      window.processInput = processInput;
+
+      const gsheetsInput = {
+        state: "<?= state ?>",
+        shl: "<?= shl ?>",
+        clientName: "<?= clientName ?>" || "Unknown Health Links Client",
+      };
+
+      function poorCDS(vaccineCodes) {
+        const vaxCoverage = {
+          "08": ["hepb"],
+          146: ["hepb", "hib", "dtap", "ipv"],
+          116: ["rotavirus"],
+          133: ["pcv"],
+          120: ["dtap", "hib", "ipv"],
+          205: ["flu"],
+          94: ["mmrv"],
+          48: ["hib"],
+          83: ["hepa"],
+          106: ["dtap"],
+          130: ["dtap", "ipv"],
+        };
+
+        const shots = vaccineCodes.flatMap((c) => vaxCoverage[c]);
+        return Object.fromEntries(
+          [
+            "hepb",
+            "hib",
+            "dtap",
+            "pcv",
+            "ipv",
+            "rotavirus",
+            "flu",
+            "mmrv",
+            "hepa",
+          ].map((v) => [v, shots.filter((s) => s === v).length])
+        );
+      }
+
+      const clientNameText = document.getElementById("clientNameInput");
+      clientNameText.value = gsheetsInput.clientName;
+
+      const shlText = document.getElementById("shlInput");
+      if (gsheetsInput.shl) {
+        shlText.value = gsheetsInput.shl;
+        shlText.onchange();
+      } else if (gsheetsInput.state) {
+        pullAndSummarize({ state: gsheetsInput.state });
+      }
+
+      const pinText = document.getElementById("pinInput");
+      const result = document.getElementById("result");
+
+      async function processInput() {
+        const needPin = await shl.needPin({ shl: shlText.value });
+        if (needPin) {
+          pinText.setAttribute("style", "width: 5rem; opacity: 100%;");
+          if (pinText.value === "") {
+            pinText.focus();
+            return;
+          }
+        } else {
+          pinText.setAttribute("style", "width: 5rem; opacity: 20%");
+        }
+        const connection = await shl.connect({
+          shl: shlText.value,
+          pin: pinText.value,
+          clientName: clientNameText.value,
+        });
+        pullAndSummarize(connection);
+      }
+
+      async function pullAndSummarize(connection) {
+        const pulled = await shl.pull(connection);
+        const decoded = await Promise.all(pulled.shcs.map(verify));
+        summarize(connection, decoded);
+      }
+
+      async function summarize(connection, decoded) {
+        const pt = decoded[0].fhirbundle.entry[0].resource;
+        const ptName = `${pt.name[0].given[0]} ${pt.name[0].family} (${pt.birthDate})`;
+        const allCvx = decoded
+          .flatMap((d) => d.fhirbundle.entry)
+          .map((e) => e?.resource?.vaccineCode?.coding?.[0]?.code)
+          .filter((c) => !!c);
+        const doseCounts = poorCDS(allCvx);
+        window.returnResults = () => {
+          google.script.run.returnStateLink(connection.state, doseCounts);
+          google.script.host.close();
+        };
+        result.innerHTML = `
+        <div>
+          ${decoded.length} Health Cards retrieved for ${ptName}
+          <h2>Dose counts</h2>
+          <ul>
+            ${Object.entries(doseCounts)
+              .map(([k, v]) => `<li>${k}: ${v} dose${v === 1 ? "" : "s"}</li>`)
+              .join("")}
+          </ul>
+          <button onclick='returnResults()'>Save to spreadsheet</button>
+        </div>`;
+      }
+    </script>
+  </body>
+</html>
