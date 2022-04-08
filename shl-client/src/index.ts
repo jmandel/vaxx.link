@@ -79,6 +79,13 @@ export interface ResourceAccessRight {
   locations: string[]
 }
 
+async function flags(config: {shl: string}){
+    const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
+    const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
+    return parsedShl?.flags
+}
+
+
 async function needPin(config: {shl: string}){
     const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
     const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
@@ -179,6 +186,7 @@ async function pull(config: SHLClientRetrieveRequest){
 };
 
 export {
+   flags,
    needPin,
    connect,
    pull,
