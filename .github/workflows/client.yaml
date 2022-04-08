@@ -16,7 +16,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          cp dist ../build/viewer
+          cp -r dist ../build/viewer
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4.2.5
         with:

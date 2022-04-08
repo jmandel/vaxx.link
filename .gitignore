@@ -5,6 +5,10 @@
 /.pnp
 .pnp.js
 
+node_modules
+shl-client/dist
+.parcel-cache/
+
 # testing
 /coverage
 
