@@ -4,21 +4,24 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "build": "parcel build src/index.html --no-content-hash --public-url '.'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-shcdecoder": "esbuild --outfile=lib/shc-decoder.js --bundle --minify --format=esm --inject:config/inject.js smart-health-card-decoder/src/index.ts",
+    "build": "esbuild --outdir=dist  --bundle  --minify  --format=esm  --sourcemap   --inject:config/inject.js src/index.ts && cp src/index.html dist && cp lib/shc-decoder.js dist"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "base64url": "^3.0.1",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.14.34",
     "jose": "^4.6.0",
+    "microbundle": "^0.14.2",
     "pako": "^2.0.4",
     "parcel": "2.3",
-    "querystring": "^0.2.1",
-    "smart-health-card-decoder": "github:smart-on-fhir/shc-decoder"
+    "querystring": "^0.2.1"
   },
   "devDependencies": {
-    "buffer": "^6.0.3",
+    "@types/pako": "^1.0.3",
     "process": "^0.11.10",
     "querystring-es3": "^0.2.1",
     "ts-node": "^10.7.0",

@@ -28,11 +28,7 @@ export interface SHLClientRetrieveRequest {
 }
 
 export interface SHLClientRetrieveResponse {
-  shcs: {
-    jws: string,
-    decoded: unknown,
-    validated: unknown
-  }[]
+  shcs: string[]
 }
 
 
@@ -174,11 +170,7 @@ async function pull(config: SHLClientRetrieveRequest){
       shcs: allShcJws.map((jws) => {
         const compressed = base64url.toBuffer(jws.split('.')[1]);
         const decompressed = decodeToJson(inflateRaw(compressed));
-        return {
-          jws,
-          decoded: decompressed,
-          validated: false,
-        };
+        return jws;
       }),
     };
 
@@ -186,19 +178,8 @@ async function pull(config: SHLClientRetrieveRequest){
 
 };
 
-const windowExports = {
+export {
    needPin,
    connect,
    pull,
-   shcDecoder
 }
-
-interface Window {
-  shl: typeof windowExports
-}
-
-declare global {
-  var shl: typeof windowExports
-}
-
-globalThis.shl = windowExports

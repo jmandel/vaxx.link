@@ -1,7 +1,6 @@
 <html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark">
   <head>
     <meta charset="utf-8" />
-    <script type="module" src="./index.ts"></script>
   </head>
   <body>
     <h1>Retrieve Data for SMART Health Link</h1>
@@ -14,6 +13,9 @@
     </div>
 
     <script type="module">
+      import * as shl from './index.js';
+      import {verify} from './shc-decoder.js';
+      console.log("SH", shl);
       window.processInput = processInput;
 
       const clientNameText = document.getElementById('clientNameInput');
@@ -23,8 +25,8 @@
 
       const linkInUrl = window.location.hash.match(/shlink:\/.*/);
       if (linkInUrl) {
-        shlInput.value = linkInUrl[0];
-        shlInput.onchange();
+        shlText.value = linkInUrl[0];
+        shlText.onchange();
       }
 
       async function processInput() {
@@ -45,15 +47,15 @@
           clientName: clientNameText.value,
         });
         const pulled = await shl.pull(connection);
-        console.log('Connected', pulled);
+        const decoded = await Promise.all(pulled.shcs.map(verify))
         result.innerHTML = `
         <div>
-          ${pulled.shcs.length} Health Cards retrieved for 
-          <pre>${JSON.stringify(pulled.shcs[0].decoded.vc.credentialSubject.fhirBundle.entry[0].resource, null, 2)}</pre>
+          ${decoded.length} Health Cards retrieved for 
+          <pre>${JSON.stringify(decoded[0].fhirbundle.entry[0].resource, null, 2)}</pre>
           <h2>Details</h2>
           <ul>
-            ${pulled.shcs
-              .flatMap((s) => s.decoded.vc.credentialSubject.fhirBundle.entry.slice(1))
+            ${decoded
+              .flatMap((s) => s.fhirbundle.entry.slice(0))
               .map((s) => s.resource)
               .map((r) => `<li><pre>${JSON.stringify(r, null, 2)}</pre></li>`)
               .join(' ')}
