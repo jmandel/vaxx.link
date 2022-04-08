@@ -7,13 +7,15 @@
     <h1>Retrieve Data for SMART Health Link</h1>
     <div>
       <input id="clientNameInput" value="Example SHL Client" /><br />
-      <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onKeyUp="processInput()" />
-      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" onKeyUp="processInput()" />
+      <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onpaste="setTimeout(processInput)" onchange="processInput()" />
+      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" onchange="processInput()" />
       <br />
       <div id="result" />
     </div>
 
-    <script>
+    <script type="module">
+      window.processInput = processInput;
+
       const clientNameText = document.getElementById('clientNameInput');
       const shlText = document.getElementById('shlInput');
       const pinText = document.getElementById('pinInput');
@@ -22,6 +24,7 @@
       const linkInUrl = window.location.hash.match(/shlink:\/.*/);
       if (linkInUrl) {
         shlInput.value = linkInUrl[0];
+        shlInput.onchange();
       }
 
       async function processInput() {
