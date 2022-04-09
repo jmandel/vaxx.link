@@ -1,6 +1,7 @@
 import { jose } from './deps.ts';
 
 export interface HealthLinkConnection {
+  shlink: string;
   clientId: string;
   active: boolean;
   registration: {

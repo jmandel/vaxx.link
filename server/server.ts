@@ -67,11 +67,11 @@ const DbLinks = {
     
     return hashEncoded
   },
-  addConnection(linkId: string, client: HealthLinkConnection) {
-    db.query(`insert into shlink_client(id, active, shlink, registration_json) values (:clientId, :active, :linkId, :registration)`, {
+  addConnection(client: HealthLinkConnection) {
+    db.query(`insert into shlink_client(id, active, shlink, registration_json) values (:clientId, :active, :shlink, :registration)`, {
       clientId: client.clientId,
       active: client.active,
-      linkId,
+      shlink: client.shlink,
       registration: JSON.stringify(client.registration)
     })
   },
@@ -90,7 +90,21 @@ const DbLinks = {
       content: fileRow[0].content,
       contentType: fileRow[0].content_type
     }
-  }
+  },
+  getClient(clientId: string) {
+    const q= db.prepareQuery(`select * from shlink_client where id=?`);
+    const clientRow = q.oneEntry([clientId]);
+    const clientConnection: HealthLinkConnection = {
+      shlink: clientRow.shlink as string,
+      clientId: clientRow.id as string,
+      active: clientRow.active as boolean,
+      registration: JSON.parse(clientRow.registration_json as string),
+      log: []
+    }
+    return clientConnection
+}
+
+
 }
 const DbTokens = new Map<string, AccessTokenStored>();
 
@@ -101,21 +115,6 @@ function createDbLink(config: HealthLinkConfig): HealthLink {
     token: randomStringWithEntropy(32),
     managementToken: randomStringWithEntropy(32),
     active: true,
-  };
-}
-
-function lookupClientId(clientId: string) {
-  const q = db.prepareQuery(`select * from shlink_client where id=?`);
-  const clientRow = q.oneEntry([clientId]);
-  const clientConnection: HealthLinkConnection = {
-    clientId: clientRow.id as string,
-    active: clientRow.active as boolean,
-    registration: JSON.parse(clientRow.registration_json as string),
-    log: []
-  }
-  return {
-    shl: clientRow.shlink as string,
-    connection: clientConnection
   };
 }
 
@@ -156,7 +155,8 @@ const oauthRouter = new Router()
     }
 
     const clientId = randomStringWithEntropy(32);
-    DbLinks.addConnection(shl.token, {
+    DbLinks.addConnection({
+        shlink: shl.token,
         active: true,
         clientId,
         log: [],
@@ -193,8 +193,8 @@ const oauthRouter = new Router()
     }
 
     const clientIdUnchecked = jose.decodeJwt(clientAssertion).iss!;
-    const clientUnchecked = lookupClientId(clientIdUnchecked);
-    const clientJwks = clientUnchecked!.connection.registration.jwks;
+    const clientUnchecked = DbLinks.getClient(clientIdUnchecked);
+    const clientJwks = clientUnchecked!.registration.jwks;
     const joseJwks = jose.createLocalJWKSet(clientJwks);
 
     const _tokenVerified = await jose.jwtVerify(clientAssertion, joseJwks, {
@@ -206,7 +206,7 @@ const oauthRouter = new Router()
     const token: AccessTokenStored = {
       accessToken: randomStringWithEntropy(32),
       exp: new Date().getTime() / 1000 + 300,
-      shlink: client.shl,
+      shlink: client.shlink,
     };
 
     DbTokens.set(token.accessToken, token);
@@ -215,7 +215,7 @@ const oauthRouter = new Router()
       expires_in: 300,
       authorization_details: [{
         type: 'shlink-view',
-        locations: DbLinks.fileNames(client.shl).map((f, _i) =>`${env.PUBLIC_URL}/api/shl/${client.shl}/file/${f}`)
+        locations: DbLinks.fileNames(client.shlink).map((f, _i) =>`${env.PUBLIC_URL}/api/shl/${client.shlink}/file/${f}`)
       }]
     }
     context.response.body = acccssTokenResponse;
