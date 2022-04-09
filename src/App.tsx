@@ -109,7 +109,7 @@ function generateLinkUrl(shl: SHLink) {
 interface DataSet {
   id: number;
   name: string;
-  shcFilter?: (shc: StoredSHC) => boolean;
+  shcTypes?: string[]
   shlinks: Record<number, SHLink>;
 }
 
@@ -170,12 +170,20 @@ const realServer: DataServer = {
   },
 };
 
+function filterForTypes(shcTypes?: string[]) {
+  if (!shcTypes) {
+    return () => true
+  }
+  
+  return (shc: StoredSHC) => !!shc?.payload?.vc?.type.some(t => shcTypes.includes(t))
+
+}
 
 
 let idGenerator = 100;
 class ServerStateSync {
   dispatch: React.Dispatch<AppAction>;
-  previousState?: AppState;
+  previousStore?: AppState;
   storeRef: { current: AppState };
   server: DataServer;
   constructor(
@@ -214,8 +222,17 @@ class ServerStateSync {
   async appStateChange() {
     console.log('sync up');
     let store = this.storeRef.current;
-    let allCards = Object.values(store.vaccines);
 
+    if (store.sharing !== this.previousStore?.sharing) {
+      localStorage.setItem("shlinks", JSON.stringify(store.sharing))
+    }
+    
+    this.uploadFilesIfNeeded(store)
+    this.previousStore = store;
+  }
+  
+  async uploadFilesIfNeeded(store: AppState){
+    let allCards = Object.values(store.vaccines);
     let serverRequestsNeeded: {
       datasetId: number;
       shlinkId: number;
@@ -224,7 +241,7 @@ class ServerStateSync {
     }[] = [];
 
     for (const ds of Object.values(store.sharing)) {
-      const cardsForDs = allCards.filter(ds.shcFilter ?? (() => true));
+      const cardsForDs = allCards.filter(filterForTypes(ds.shcTypes));
       for (const shl of Object.values(ds.shlinks)) {
         const cardsForShl = Object.keys(shl.uploads).map(Number);
         const needAdditions = cardsForDs.filter((c) => !cardsForShl.includes(c.id)).map((a) => a.id);
@@ -263,6 +280,7 @@ class ServerStateSync {
         console.log('TODO: synchronize deleted SHCs to SHLs');
       }
     }
+
   }
 }
 
@@ -270,13 +288,12 @@ const defaultDatasets: DataSet[] = [
   {
     id: 0,
     name: 'All Vaccines',
-    shcFilter: (_shc) => true,
     shlinks: {},
   },
   {
     id: 1,
     name: 'School Vaccines',
-    shcFilter: (shc) => !!shc?.payload?.vc?.type.includes('https://smarthealth.cards#immunization'),
+    shcTypes: ["#immunization"],
     shlinks: {},
   },
 ];
@@ -306,7 +323,7 @@ export function SHLinkCreate() {
   let [searchParams] = useSearchParams();
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
-  let vaccines = Object.values(store.vaccines).filter(ds.shcFilter ?? (() => true));
+  let vaccines = Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes));
 
   async function activate() {
     await serverSyncer.createShl(datasetId, {
@@ -569,7 +586,7 @@ let serverSyncer: ServerStateSync;
 function App() {
   let [store, dispatch] = useReducer(reducer, {
     vaccines: [],
-    sharing: Object.fromEntries(defaultDatasets.map((o) => [o.id, o] as const)),
+    sharing: localStorage.getItem("shlinks") ? JSON.parse(localStorage.getItem("shlinks")!) :  Object.fromEntries(defaultDatasets.map((o) => [o.id, o] as const)),
   });
 
   let storeRef = useRef(store);
