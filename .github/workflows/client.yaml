@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 🛎️
-        working-directory: ./ui
         uses: actions/checkout@v2
       - name: Install and Build 🔧 
+        working-directory: ./ui
         run: |
           npm ci
           REACT_APP_REAL_SERVER_BASE=https://api.vaxx.link/api npm run build
