@@ -174,7 +174,7 @@ function filterForTypes(shcTypes?: string[]) {
   if (!shcTypes) {
     return () => true
   }
-  const targetTypes = shcTypes.map(t => `https://smarthealth.cards#${t}`)
+  const targetTypes = shcTypes.map(t => `https://smarthealth.cards${t}`)
   return (shc: StoredSHC) => !!shc?.payload?.vc?.type.some(t => targetTypes.includes(t))
 }
 
