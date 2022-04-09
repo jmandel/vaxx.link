@@ -1,18 +1,27 @@
-name: Build and Deploy Client to GH Pages
-on: [push]
+name: Deploy UI to GH Pages
+on:
+  push:
+    branches:
+    - main
+    paths:
+    - 'ui/**'
+    - 'client/**'
+
 jobs:
   build-and-deploy:
     concurrency: ci-${{ github.ref }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 🛎️
+        working-directory: ./ui
         uses: actions/checkout@v2
       - name: Install and Build 🔧 
         run: |
           npm ci
           REACT_APP_REAL_SERVER_BASE=https://api.vaxx.link/api npm run build
+          mv build ..
       - name: Build example viewer
-        working-directory: ./shl-client
+        working-directory: ./client
         run: |
           npm ci
           npm run build
