@@ -6,7 +6,12 @@
 
 
 # Run
-    deno run --allow-env="PORT" --allow-read="./static" --allow-net --watch server.ts
+```
+deno run --allow-env="PORT" --allow-read=".","./db" --allow-write="./db" --allow-net --watch server.ts
+```
 
 # Test
-    deno test --allow-env="PORT" --allow-read="./static" --allow-net
+
+```sh
+deno test --allow-env="PORT" --allow-read=".","./db" --allow-write="./db" --allow-net
+```

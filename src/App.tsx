@@ -408,7 +408,7 @@ export function SHLinks() {
                 </em>
               </li>
               <li>
-                <em>Access count: {shl.serverStatus?.connections.flatMap((l) => l.log).length}</em>
+                <em>Access count: {shl.serverStatus?.connections?.flatMap((l) => l.log).length}</em>
                 <br></br>
                 <button>See acccess log</button>
               </li>

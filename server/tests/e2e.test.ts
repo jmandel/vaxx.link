@@ -40,7 +40,6 @@ Deno.test({
       });
 
       assertions.assertEquals(shlFileResponse.status, 200)
-      // console.log('SHL file response', shlFile);
     });
 
     let discovery: { token_endpoint: string; registration_endpoint: string };
@@ -73,7 +72,6 @@ Deno.test({
 
       assertions.assertEquals(registeredResponse.status, 200)
       registered = (await registeredResponse.json()) as OAuthRegisterResponse;
-      console.log('Registered', JSON.stringify(registered, null, 2));
     });
 
     let tokenResponseJson: any;
@@ -87,7 +85,6 @@ Deno.test({
         .setJti(randomStringWithEntropy(32))
         .sign(clientKey.privateKey);
 
-      console.log('Generated assertion', clientAssertion);
       const tokenResponse = await fetch(`${discovery.token_endpoint}`, {
         method: 'POST',
         headers: {
@@ -119,6 +116,7 @@ Deno.test({
       assertions.assert(file.length > 2)
       // console.log('got filef', fileResponse.status, file);
     });
+
 
     const shlClientConnectionResponse = await fetch(`${env.PUBLIC_URL}/client/connect`, {
       method: 'POST',
@@ -153,6 +151,7 @@ Deno.test({
     assertions.assertEquals(shlClientConnectionResponse.status, 200)
     const shlClientRetrieve = await shlClientRetrieveResponse.json();
     assertions.assertEquals(shlClientRetrieve.shcs[0].decoded.iss, "https://spec.smarthealth.cards/examples/issuer")
+
   },
   sanitizeOps: false,
   sanitizeResources: false,

@@ -1,5 +1,5 @@
 import env from './config.ts';
-import { jose, oak, cors, base64url, queryString } from './deps.ts';
+import { jose, oak, cors, base64url, queryString, sqlite} from './deps.ts';
 import { inflate } from "https://deno.land/x/denoflate@1.2.1/mod.ts";
 
 import {
@@ -7,6 +7,8 @@ import {
   AccessTokenResponse,
   HealthLink,
   HealthLinkConfig,
+  HealthLinkConnection,
+  HealthLinkFile,
   OAuthRegisterPayload,
   OAuthRegisterResponse,
   SHLClientConnectRequest,
@@ -16,10 +18,80 @@ import {
   SHLDecoded,
 } from './types.ts';
 import { decodeBase64urlToJson, decodeToJson, randomStringWithEntropy } from './util.ts';
+
+const { DB } = sqlite;
+const db = new DB("./db/vaxx.db");
+const schema = await Deno.readTextFile("./schema.sql")
+db.execute(schema)
+
 const { Application, Router } = oak;
 const { oakCors } = cors;
 
-const DbLinks = new Map<string, HealthLink>();
+const DbLinks = {
+  create(link: HealthLink){
+    const inserted = db.query(`INSERT INTO shlink (token, url, management_token, active, config_exp, config_pin, config_encrypted)
+      values (:token, :url, :managementToken, :active, :exp, :pin, :encrypted)`, {
+        token: link.token,
+        url: link.url,
+        managementToken: link.managementToken,
+        active: link.active,
+        exp: link.config.exp,
+        pin: link.config.pin,
+        encrypted: link.config.encrypted
+      });
+  },
+  get(linkId: string): HealthLink {
+    const linkRow = db.prepareQuery(`SELECT * from shlink where token=?`).oneEntry([linkId]);
+    return {
+      token: linkRow.token as string,
+      active: linkRow.active as boolean,
+      url: linkRow.url as string,
+      managementToken: linkRow.management_token as string,
+      config: {exp: linkRow.config_exp as number, encrypted: linkRow.encrypted as boolean, pin: linkRow.config_pin as string},
+    }
+  },
+  async addFile(linkId: string, file: HealthLinkFile): Promise<string> {
+    const hash = await crypto.subtle.digest("SHA-256", file.content);
+    const hashEncoded = base64url.encode(hash);
+
+    db.query(`insert or ignore into cas_item(hash, content) values(:hashEncoded, :content)`, {
+      hashEncoded,
+      content: file.content
+    });
+
+    db.query(`insert into shlink_file(shlink, content_type, content_hash) values (:linkId, :contentType, :hashEncoded)`, {
+      linkId,
+      contentType: file.contentType,
+      hashEncoded
+    })
+    
+    return hashEncoded
+  },
+  addConnection(linkId: string, client: HealthLinkConnection) {
+    db.query(`insert into shlink_client(id, active, shlink, registration_json) values (:clientId, :active, :linkId, :registration)`, {
+      clientId: client.clientId,
+      active: client.active,
+      linkId,
+      registration: JSON.stringify(client.registration)
+    })
+  },
+  fileNames(linkId: string): string[] {
+    const files = db.queryEntries<{content_hash: string}>(`select content_hash from shlink_file where shlink=?`, [linkId]);
+    return files.map(r => r.content_hash)
+  },
+  getFile(linkId: string, contentHash: string): HealthLinkFile {
+    const fileRow = db.queryEntries<{content_type: string, content: Uint8Array}>(`
+      select content_type, content from shlink_file f join cas_item c on f.content_hash=c.hash
+      where f.shlink=:linkId and f.content_hash=:contentHash`, {
+      linkId, contentHash
+    })
+    
+    return  {
+      content: fileRow[0].content,
+      contentType: fileRow[0].content_type
+    }
+  }
+}
 const DbTokens = new Map<string, AccessTokenStored>();
 
 function createDbLink(config: HealthLinkConfig): HealthLink {
@@ -29,20 +101,22 @@ function createDbLink(config: HealthLinkConfig): HealthLink {
     token: randomStringWithEntropy(32),
     managementToken: randomStringWithEntropy(32),
     active: true,
-    files: [],
-    connections: [],
   };
 }
 
 function lookupClientId(clientId: string) {
-  for (const l of DbLinks.values()) {
-    for (const c of l.connections) {
-      if (c.clientId === clientId) {
-        return { shl: l, client: c };
-      }
-    }
+  const q = db.prepareQuery(`select * from shlink_client where id=?`);
+  const clientRow = q.oneEntry([clientId]);
+  const clientConnection: HealthLinkConnection = {
+    clientId: clientRow.id as string,
+    active: clientRow.active as boolean,
+    registration: JSON.parse(clientRow.registration_json as string),
+    log: []
   }
-  return null;
+  return {
+    shl: clientRow.shlink as string,
+    connection: clientConnection
+  };
 }
 
 function lookupAuthzToken(authzToken: string, shlId: string) {
@@ -82,8 +156,7 @@ const oauthRouter = new Router()
     }
 
     const clientId = randomStringWithEntropy(32);
-    shl.connections = shl.connections.concat([
-      {
+    DbLinks.addConnection(shl.token, {
         active: true,
         clientId,
         log: [],
@@ -91,8 +164,7 @@ const oauthRouter = new Router()
           name: config.client_name!,
           jwks: config.jwks,
         },
-      },
-    ]);
+      })
 
     context.response.body = {
       client_id: clientId,
@@ -122,7 +194,7 @@ const oauthRouter = new Router()
 
     const clientIdUnchecked = jose.decodeJwt(clientAssertion).iss!;
     const clientUnchecked = lookupClientId(clientIdUnchecked);
-    const clientJwks = clientUnchecked!.client.registration.jwks;
+    const clientJwks = clientUnchecked!.connection.registration.jwks;
     const joseJwks = jose.createLocalJWKSet(clientJwks);
 
     const _tokenVerified = await jose.jwtVerify(clientAssertion, joseJwks, {
@@ -134,7 +206,7 @@ const oauthRouter = new Router()
     const token: AccessTokenStored = {
       accessToken: randomStringWithEntropy(32),
       exp: new Date().getTime() / 1000 + 300,
-      shlink: client.shl.token,
+      shlink: client.shl,
     };
 
     DbTokens.set(token.accessToken, token);
@@ -143,10 +215,9 @@ const oauthRouter = new Router()
       expires_in: 300,
       authorization_details: [{
         type: 'shlink-view',
-        locations: (client.shl.files || []).map((_f, i) =>`${env.PUBLIC_URL}/api/shl/${client.shl.token}/file/${i}`)
+        locations: DbLinks.fileNames(client.shl).map((f, _i) =>`${env.PUBLIC_URL}/api/shl/${client.shl}/file/${f}`)
       }]
     }
-
     context.response.body = acccssTokenResponse;
   });
 
@@ -154,7 +225,7 @@ const shlApiRouter = new Router()
   .post('/shl', async (context) => {
     const config: HealthLinkConfig = await context.request.body({ type: 'json' }).value;
     const newLink = createDbLink(config);
-    DbLinks.set(newLink.token, newLink);
+    DbLinks.create(newLink);
     context.response.body = {
       ...newLink,
       files: undefined,
@@ -169,7 +240,7 @@ const shlApiRouter = new Router()
       return (context.response.status = 401);
     }
 
-    const file = shl.files![Number(context.params.fileIndex)];
+    const file = DbLinks.getFile(shl.token, context.params.fileIndex)
     context.response.headers.set('content-type', file.contentType);
     context.response.body = file.content;
   })
@@ -197,12 +268,11 @@ const shlApiRouter = new Router()
       contentType: context.request.headers.get('content-type')!,
       content: await newFileBody.value,
     }
-    shl.files = shl.files!.concat([newFile]);
 
+    const added =DbLinks.addFile(shl.token, newFile)
     context.response.body = {
       ...shl,
-      files: undefined,
-      addedFiles: shl.files.length,
+      added
     };
   })
   .get('/jwt-demo', async (context) => {
@@ -215,7 +285,9 @@ const shlApiRouter = new Router()
     };
   });
 
-const shlClientRouter = new Router()
+  
+
+  const shlClientRouter = new Router()
   .post('/connect', async (context) => {
     const config: SHLClientConnectRequest = await context.request.body({ type: 'json' }).value;
     const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
@@ -314,8 +386,8 @@ const appRouter = new Router()
   .get('/', (context) => {
     context.response.body = 'Index';
   })
-  .use(`/client`, shlClientRouter.routes(), shlClientRouter.allowedMethods())
   .use(`/api`, shlApiRouter.routes(), shlApiRouter.allowedMethods())
+  .use(`/client`, shlClientRouter.routes(), shlClientRouter.allowedMethods())
   .use(`/oauth`, oauthRouter.routes(), oauthRouter.allowedMethods())
   .get(`/.well-known/smart-configuration`, (context) => {
     context.response.body = {

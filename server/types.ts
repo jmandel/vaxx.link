@@ -30,8 +30,6 @@ export interface HealthLink {
   url: string;
   token: string;
   managementToken: string;
-  files?: HealthLinkFile[];
-  connections: HealthLinkConnection[];
 }
 
 export interface AccessToken{
