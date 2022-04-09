@@ -69,7 +69,7 @@ spec:
       volumes:
       - name: vaxxdb
         persistentVolumeClaim:
-          claimName: vaxxlink-pvc
+          claimName: vaxxlink-db-azure-managed-disk
       containers:
       - name: shlapi
         image: argonautcontainerregistry.azurecr.io/vaxxlink:latest
@@ -83,42 +83,17 @@ spec:
         volumeMounts:
         - mountPath: "/app/db"
           name: vaxxdb
-
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: vaxxlink-pv
-  namespace: vaxxlink
-spec:
-  capacity:
-    storage: 2Gi
-  volumeMode: Filesystem
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
-  local:
-    path: /mnt/vaxxdb # created via 'kubectl  debug', adding /host/mnt/vaxxdb
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: agentpool
-          operator: In
-          values:
-          - agentpool
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: vaxxlink-pvc
+  name: vaxxlink-db-azure-managed-disk
   namespace: vaxxlink
 spec:
   accessModes:
-    - ReadWriteOnce
-  storageClassName: local-storage
+  - ReadWriteOnce
+  storageClassName: default
   resources:
     requests:
       storage: 2Gi
-  volumeName: vaxxlink-pv
+apiVersion: v1
