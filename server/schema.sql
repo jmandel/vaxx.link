@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS shlink_client(
 
 CREATE TABLE IF NOT EXISTS shlink_client_access(
   client_id REFERENCES shlink_client(id) ON DELETE CASCADE,
-  "when" DATETIME NOT NULL DEFAULT(DATETIME('now')),
-  what TEXT NOT NULL
+  access_time DATETIME NOT NULL DEFAULT(DATETIME('now')),
+  access_url TEXT NOT NULL
 );
 
 CREATE TRIGGER IF NOT EXISTS delete_cas_on_ref_count_0
