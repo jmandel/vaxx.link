@@ -1,7 +1,10 @@
+import env from "./config.ts";
 import { base64url, sqlite } from './deps.ts';
-import { HealthLink, HealthLinkConnection, HealthLinkFile } from './types.ts';
+import { AccessToken, HealthLink, HealthLinkConfig, HealthLinkConnection, HealthLinkFile } from './types.ts';
+import { randomStringWithEntropy } from "./util.ts";
 
 const { DB } = sqlite;
+
 const db = new DB('./db/vaxx.db');
 const schema = await Deno.readTextFile('./schema.sql');
 db.execute(schema);
@@ -97,3 +100,31 @@ export const DbLinks = {
     return clientConnection;
   },
 };
+
+export const DbTokens = new Map<string, AccessToken>();
+
+
+export function createDbLink(config: HealthLinkConfig): HealthLink {
+  return {
+    config,
+    url: env.PUBLIC_URL,
+    token: randomStringWithEntropy(32),
+    managementToken: randomStringWithEntropy(32),
+    active: true,
+  };
+}
+
+export function lookupAuthzToken(authzToken: string, shlId: string) {
+  const entry = DbTokens.get(authzToken);
+  if (!entry || entry.exp < new Date().getTime() / 1000) {
+    console.log('No token or expired', entry, authzToken, DbTokens);
+    DbTokens.delete(authzToken);
+    return null;
+  }
+  const shl = DbLinks.get(entry.shlink);
+  if (shl?.token !== shlId) {
+    return null;
+  }
+  return shl;
+}
+
