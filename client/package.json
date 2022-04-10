@@ -15,9 +15,7 @@
     "buffer": "^6.0.3",
     "esbuild": "^0.14.34",
     "jose": "^4.6.0",
-    "microbundle": "^0.14.2",
     "pako": "^2.0.4",
-    "parcel": "2.3",
     "querystring": "^0.2.1"
   },
   "devDependencies": {
