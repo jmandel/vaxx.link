@@ -1,14 +1,12 @@
 import env from './config.ts';
-import { jose, oak, cors, base64url, queryString, sqlite} from './deps.ts';
-import { inflate } from "https://deno.land/x/denoflate@1.2.1/mod.ts";
+import { jose, oak, cors, base64url, queryString } from './deps.ts';
+import { inflate } from 'https://deno.land/x/denoflate@1.2.1/mod.ts';
 
 import {
   AccessToken as AccessTokenStored,
   AccessTokenResponse,
   HealthLink,
   HealthLinkConfig,
-  HealthLinkConnection,
-  HealthLinkFile,
   OAuthRegisterPayload,
   OAuthRegisterResponse,
   SHLClientConnectRequest,
@@ -17,95 +15,13 @@ import {
   SHLClientStateDecoded,
   SHLDecoded,
 } from './types.ts';
-import { decodeBase64urlToJson, decodeToJson, randomStringWithEntropy } from './util.ts';
 
-const { DB } = sqlite;
-const db = new DB("./db/vaxx.db");
-const schema = await Deno.readTextFile("./schema.sql")
-db.execute(schema)
+import { decodeBase64urlToJson, decodeToJson, randomStringWithEntropy } from './util.ts';
+import { DbLinks } from './db.ts';
 
 const { Application, Router } = oak;
 const { oakCors } = cors;
 
-const DbLinks = {
-  create(link: HealthLink){
-    const inserted = db.query(`INSERT INTO shlink (token, url, management_token, active, config_exp, config_pin, config_encrypted)
-      values (:token, :url, :managementToken, :active, :exp, :pin, :encrypted)`, {
-        token: link.token,
-        url: link.url,
-        managementToken: link.managementToken,
-        active: link.active,
-        exp: link.config.exp,
-        pin: link.config.pin,
-        encrypted: link.config.encrypted
-      });
-  },
-  get(linkId: string): HealthLink {
-    const linkRow = db.prepareQuery(`SELECT * from shlink where token=?`).oneEntry([linkId]);
-    return {
-      token: linkRow.token as string,
-      active: linkRow.active as boolean,
-      url: linkRow.url as string,
-      managementToken: linkRow.management_token as string,
-      config: {exp: linkRow.config_exp as number, encrypted: linkRow.encrypted as boolean, pin: linkRow.config_pin as string},
-    }
-  },
-  async addFile(linkId: string, file: HealthLinkFile): Promise<string> {
-    const hash = await crypto.subtle.digest("SHA-256", file.content);
-    const hashEncoded = base64url.encode(hash);
-
-    db.query(`insert or ignore into cas_item(hash, content) values(:hashEncoded, :content)`, {
-      hashEncoded,
-      content: file.content
-    });
-
-    db.query(`insert into shlink_file(shlink, content_type, content_hash) values (:linkId, :contentType, :hashEncoded)`, {
-      linkId,
-      contentType: file.contentType,
-      hashEncoded
-    })
-    
-    return hashEncoded
-  },
-  addConnection(client: HealthLinkConnection) {
-    db.query(`insert into shlink_client(id, active, shlink, registration_json) values (:clientId, :active, :shlink, :registration)`, {
-      clientId: client.clientId,
-      active: client.active,
-      shlink: client.shlink,
-      registration: JSON.stringify(client.registration)
-    })
-  },
-  fileNames(linkId: string): string[] {
-    const files = db.queryEntries<{content_hash: string}>(`select content_hash from shlink_file where shlink=?`, [linkId]);
-    return files.map(r => r.content_hash)
-  },
-  getFile(linkId: string, contentHash: string): HealthLinkFile {
-    const fileRow = db.queryEntries<{content_type: string, content: Uint8Array}>(`
-      select content_type, content from shlink_file f join cas_item c on f.content_hash=c.hash
-      where f.shlink=:linkId and f.content_hash=:contentHash`, {
-      linkId, contentHash
-    })
-    
-    return  {
-      content: fileRow[0].content,
-      contentType: fileRow[0].content_type
-    }
-  },
-  getClient(clientId: string) {
-    const q= db.prepareQuery(`select * from shlink_client where id=?`);
-    const clientRow = q.oneEntry([clientId]);
-    const clientConnection: HealthLinkConnection = {
-      shlink: clientRow.shlink as string,
-      clientId: clientRow.id as string,
-      active: clientRow.active as boolean,
-      registration: JSON.parse(clientRow.registration_json as string),
-      log: []
-    }
-    return clientConnection
-}
-
-
-}
 const DbTokens = new Map<string, AccessTokenStored>();
 
 function createDbLink(config: HealthLinkConfig): HealthLink {
@@ -156,15 +72,15 @@ const oauthRouter = new Router()
 
     const clientId = randomStringWithEntropy(32);
     DbLinks.addConnection({
-        shlink: shl.token,
-        active: true,
-        clientId,
-        log: [],
-        registration: {
-          name: config.client_name!,
-          jwks: config.jwks,
-        },
-      })
+      shlink: shl.token,
+      active: true,
+      clientId,
+      log: [],
+      registration: {
+        name: config.client_name!,
+        jwks: config.jwks,
+      },
+    });
 
     context.response.body = {
       client_id: clientId,
@@ -210,14 +126,18 @@ const oauthRouter = new Router()
     };
 
     DbTokens.set(token.accessToken, token);
-    let acccssTokenResponse: AccessTokenResponse = {
+    const acccssTokenResponse: AccessTokenResponse = {
       access_token: token.accessToken,
       expires_in: 300,
-      authorization_details: [{
-        type: 'shlink-view',
-        locations: DbLinks.fileNames(client.shlink).map((f, _i) =>`${env.PUBLIC_URL}/api/shl/${client.shlink}/file/${f}`)
-      }]
-    }
+      authorization_details: [
+        {
+          type: 'shlink-view',
+          locations: DbLinks.fileNames(client.shlink).map(
+            (f, _i) => `${env.PUBLIC_URL}/api/shl/${client.shlink}/file/${f}`,
+          ),
+        },
+      ],
+    };
     context.response.body = acccssTokenResponse;
   });
 
@@ -240,7 +160,7 @@ const shlApiRouter = new Router()
       return (context.response.status = 401);
     }
 
-    const file = DbLinks.getFile(shl.token, context.params.fileIndex)
+    const file = DbLinks.getFile(shl.token, context.params.fileIndex);
     context.response.headers.set('content-type', file.contentType);
     context.response.body = file.content;
   })
@@ -255,7 +175,6 @@ const shlApiRouter = new Router()
     };
   })
   .post('/shl/:shlId/file', async (context) => {
-
     const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1];
     const newFileBody = await context.request.body({ type: 'bytes' });
 
@@ -267,12 +186,12 @@ const shlApiRouter = new Router()
     const newFile = {
       contentType: context.request.headers.get('content-type')!,
       content: await newFileBody.value,
-    }
+    };
 
-    const added =DbLinks.addFile(shl.token, newFile)
+    const added = DbLinks.addFile(shl.token, newFile);
     context.response.body = {
       ...shl,
-      added
+      added,
     };
   })
   .get('/jwt-demo', async (context) => {
@@ -285,9 +204,7 @@ const shlApiRouter = new Router()
     };
   });
 
-  
-
-  const shlClientRouter = new Router()
+const shlClientRouter = new Router()
   .post('/connect', async (context) => {
     const config: SHLClientConnectRequest = await context.request.body({ type: 'json' }).value;
     const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
@@ -324,8 +241,8 @@ const shlApiRouter = new Router()
   .post('/retrieve', async (context) => {
     const config: SHLClientRetrieveRequest = await context.request.body({ type: 'json' }).value;
     const state: SHLClientStateDecoded = decodeBase64urlToJson<SHLClientStateDecoded>(config.state);
-    const clientKey = await jose.importJWK(state.privateJwk, "ES256");
-    const clientAssertion = await new jose.SignJWT({ })
+    const clientKey = await jose.importJWK(state.privateJwk, 'ES256');
+    const clientAssertion = await new jose.SignJWT({})
       .setIssuer(state.clientId)
       .setSubject(state.clientId)
       .setAudience(state.tokenEndpoint)
@@ -358,7 +275,7 @@ const shlApiRouter = new Router()
               headers: {
                 authorization: `Bearer ${tokenResponseJson.access_token}`,
               },
-            }).then(f => f.text()) // TODO deal with other content types
+            }).then((f) => f.text()), // TODO deal with other content types
         ),
     );
 
