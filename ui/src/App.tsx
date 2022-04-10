@@ -5,7 +5,7 @@ import { BottomNavigation, BottomNavigationAction } from '@mui/material';
 import Container from '@mui/material/Container';
 import produce from 'immer';
 import QRCode from 'qrcode';
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
 
 import {
