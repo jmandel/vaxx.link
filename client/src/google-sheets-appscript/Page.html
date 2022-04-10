@@ -10,15 +10,14 @@
         id="shlInput"
         autofocus
         placeholder="Paste SMART Health Link"
-        onpaste="setTimeout(processInput)"
-        onchange="processInput()"
+        oninput="processInput()"
       />
       <input
         class="hidden"
         id="pinInput"
         placeholder="Enter PIN"
         style="width: 5rem; opacity: 20%"
-        onchange="processInput()"
+        oninput="processInput()"
       />
       <br />
       <div id="result" />
@@ -72,7 +71,7 @@
       const shlText = document.getElementById("shlInput");
       if (gsheetsInput.shl) {
         shlText.value = gsheetsInput.shl;
-        shlText.onchange();
+        shlText.oninput();
       } else if (gsheetsInput.state) {
         pullAndSummarize({ state: gsheetsInput.state });
       }
