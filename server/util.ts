@@ -1,10 +1,10 @@
 import { base64url } from './deps.ts';
 const { encode } = base64url;
 
-export function randomStringWithEntropy(entropy: number) {
+export function randomStringWithEntropy(entropy: number, prefix?: string) {
   const b = new Uint8Array(entropy);
   crypto.getRandomValues(b);
-  return encode(b.buffer);
+  return (prefix ?? "") + encode(b.buffer);
 }
 
 export function decodeBase64urlToJson<T>(s: string): T {

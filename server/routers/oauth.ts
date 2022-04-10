@@ -5,6 +5,8 @@ import { jose } from "../deps.ts";
 import { AccessToken, AccessTokenResponse, OAuthRegisterPayload } from '../types.ts';
 import { randomStringWithEntropy } from "../util.ts";
 
+import {clientConnectionListener} from "./api.ts"
+
 export const oauthRouter = new Router()
   .post('/register', async (context) => {
     const config: OAuthRegisterPayload = await context.request.body({ type: 'json' }).value;
@@ -18,7 +20,7 @@ export const oauthRouter = new Router()
     }
 
     const shlId = context.request.headers.get('authorization')!.split(/bearer /i)[1];
-    const shl = DbLinks.get(shlId);
+    const shl = DbLinks.getShlInternal(shlId);
     if (!shl) {
       throw 'Cannot authorize; SHL does not exist';
     }

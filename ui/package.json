@@ -23,6 +23,7 @@
     "smart-health-card-decoder": "github:smart-health-cards/shc-decoder#for-cra",
     "typescript": "^4.6.3",
     "universal-base64url": "^1.1.0",
+    "use-deep-compare-effect": "^1.8.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

@@ -5,7 +5,9 @@ import { BottomNavigation, BottomNavigationAction } from '@mui/material';
 import Container from '@mui/material/Container';
 import produce from 'immer';
 import QRCode from 'qrcode';
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import useDeepCompareEffect from 'use-deep-compare-effect';
+
 import {
   NavLink,
   Outlet,
@@ -13,7 +15,7 @@ import {
   useNavigate,
   useOutletContext,
   useParams,
-  useSearchParams
+  useSearchParams,
 } from 'react-router-dom';
 import * as shdc from 'smart-health-card-decoder/esm/index';
 import './App.css';
@@ -57,7 +59,7 @@ interface SHLinkStatus {
       url: string;
       date: number;
     };
-  }[]
+  }[];
 }
 
 interface SHLink {
@@ -109,13 +111,14 @@ function generateLinkUrl(shl: SHLink) {
 interface DataSet {
   id: number;
   name: string;
-  shcTypes?: string[]
+  shcTypes?: string[];
   shlinks: Record<number, SHLink>;
 }
 
 interface DataServer {
   storeShc: (shl: SHLink, shc: StoredSHC) => Promise<SHLinkStatus>;
   createShl: (shl: SHLink['serverConfig']) => Promise<SHLinkStatus>;
+  subscribeToShls: (shls: Pick<SHLinkStatus, 'token' | 'managementToken'>[]) => Promise<EventSource>;
 }
 
 const fakeServerDb: Record<string, Omit<SHLink, 'id' | 'name' | 'encryptionKey'>> = {};
@@ -144,42 +147,50 @@ const fakeServer: DataServer = {
     await new Promise((res) => setTimeout(() => res(null), 50));
     return Promise.resolve(JSON.parse(JSON.stringify(serverStatus)));
   },
+  subscribeToShls: async (shls) => Promise.resolve(null as unknown as EventSource),
 };
 
-const realServerBaseUrl = process.env.REACT_APP_REAL_SERVER_BASE || `http://localhost:8000/api`
+const realServerBaseUrl = process.env.REACT_APP_REAL_SERVER_BASE || `http://localhost:8000/api`;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const realServer: DataServer = {
   storeShc: async (shl, shc) => {
     const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.token}/file`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "content-type": "application/smart-health-card",
-        "authorization": `Bearer ${shl.serverStatus?.managementToken}`
+        'content-type': 'application/smart-health-card',
+        authorization: `Bearer ${shl.serverStatus?.managementToken}`,
       },
-      body: JSON.stringify({verifiableCredential: [shc.jws]})
+      body: JSON.stringify({ verifiableCredential: [shc.jws] }),
     });
-    return result.json()
+    return result.json();
   },
   createShl: async (shl) => {
     const result = await fetch(`${realServerBaseUrl}/shl`, {
-      method: "POST",
-      body: JSON.stringify(shl) 
+      method: 'POST',
+      body: JSON.stringify(shl),
     });
-    return result.json()
+    return result.json();
+  },
+  subscribeToShls: async (shls) => {
+    const ticket = await fetch(`${realServerBaseUrl}/subscribe`, {
+      method: 'POST',
+      body: JSON.stringify(shls),
+    });
+    const ticketUrl = (await ticket.json()).subscribe;
+    return new EventSource(ticketUrl);
   },
 };
 
 function filterForTypes(shcTypes?: string[]) {
   if (!shcTypes) {
-    return () => true
+    return () => true;
   }
-  const targetTypes = shcTypes.map(t => `https://smarthealth.cards${t}`)
-  return (shc: StoredSHC) => !!shc?.payload?.vc?.type.some(t => targetTypes.includes(t))
+  const targetTypes = shcTypes.map((t) => `https://smarthealth.cards${t}`);
+  return (shc: StoredSHC) => !!shc?.payload?.vc?.type.some((t) => targetTypes.includes(t));
 }
 
-
-let idGenerator = 100;
+let idGenerator = () => Math.random();
 class ServerStateSync {
   dispatch: React.Dispatch<AppAction>;
   previousStore?: AppState;
@@ -197,8 +208,8 @@ class ServerStateSync {
 
   async createShl(datasetId: number, serverConfig: SHLinkConfig) {
     let serverStatus = await this.server.createShl(serverConfig);
-    console.log("Created", serverStatus)
-    let newShlinkId = idGenerator++;
+    let newShlinkId = idGenerator();
+    console.log('Created', serverStatus, newShlinkId);
     let encryptionKey;
     if (serverConfig.encrypted) {
       encryptionKey = new Uint8Array(32);
@@ -219,18 +230,15 @@ class ServerStateSync {
     return newShlinkId;
   }
   async appStateChange() {
-    console.log('sync up');
     let store = this.storeRef.current;
-
     if (store.sharing !== this.previousStore?.sharing) {
-      localStorage.setItem("shlinks", JSON.stringify(store.sharing))
+      localStorage.setItem('shlinks', JSON.stringify(store.sharing));
     }
-    
-    this.uploadFilesIfNeeded(store)
+    this.uploadFilesIfNeeded(store);
     this.previousStore = store;
   }
-  
-  async uploadFilesIfNeeded(store: AppState){
+
+  async uploadFilesIfNeeded(store: AppState) {
     let allCards = Object.values(store.vaccines);
     let serverRequestsNeeded: {
       datasetId: number;
@@ -279,7 +287,6 @@ class ServerStateSync {
         console.log('TODO: synchronize deleted SHCs to SHLs');
       }
     }
-
   }
 }
 
@@ -292,18 +299,18 @@ const defaultDatasets: DataSet[] = [
   {
     id: 1,
     name: 'School Vaccines',
-    shcTypes: ["#immunization"],
+    shcTypes: ['#immunization'],
     shlinks: {},
   },
 ];
 
 const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
-  shcJwsFixtures.map(async (jws) => {
+  shcJwsFixtures.map(async (jws, i) => {
     const context = new shdc.Context();
     context.compact = jws;
     const payload = (await shdc.low.decode.jws.compact(context)).jws.payload;
     return {
-      id: idGenerator++,
+      id: i,
       jws,
       payload,
     };
@@ -391,7 +398,6 @@ export function SHLinks() {
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
 
   useEffect(() => {
-    console.log('SHLinks changed; rerender QR');
     let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
     Promise.all(
       allLinks.map(async (l) => [l.id, await QRCode.toDataURL(generateLinkUrl(l), { errorCorrectionLevel: 'medium' })]),
@@ -559,33 +565,35 @@ export function SettingsPage() {
   return <>TODO</>;
 }
 
-export function Vaccines(){
-
+export function Vaccines() {
   let { store } = useStore();
   let vaccines = Object.values(store.vaccines);
-return <ol>
-        {vaccines.map((v, i) => {
-          let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
-          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
-          let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
-          return (
-            <li key={i} style={{ fontFamily: 'monospace' }}>
-              {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
-              {drug.slice(0, 23)}
-              {drug.length > 20 ? '...' : ''} at {location}
-            </li>
-          );
-        })}
-      </ol>
+  return (
+    <ol>
+      {vaccines.map((v, i) => {
+        let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
+        let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
+        let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
+        return (
+          <li key={i} style={{ fontFamily: 'monospace' }}>
+            {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+            {drug.slice(0, 23)}
+            {drug.length > 20 ? '...' : ''} at {location}
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
-
 let serverSyncer: ServerStateSync;
-
+let server = realServer;
 function App() {
   let [store, dispatch] = useReducer(reducer, {
     vaccines: [],
-    sharing: localStorage.getItem("shlinks") ? JSON.parse(localStorage.getItem("shlinks")!) :  Object.fromEntries(defaultDatasets.map((o) => [o.id, o] as const)),
+    sharing: localStorage.getItem('shlinks')
+      ? JSON.parse(localStorage.getItem('shlinks')!)
+      : Object.fromEntries(defaultDatasets.map((o) => [o.id, o] as const)),
   });
 
   let storeRef = useRef(store);
@@ -594,13 +602,34 @@ function App() {
     serverSyncer && serverSyncer.appStateChange();
   }, [store]);
 
+  const shls = Object.values(store.sharing)
+    .flatMap((ds) => Object.values(ds.shlinks))
+    .map((v) => ({ token: v.serverStatus?.token!, managementToken: v.serverStatus?.managementToken! }));
+
+  useDeepCompareEffect(() => {
+    let eventSource: EventSource;
+    server.subscribeToShls(shls).then((es) => {
+      console.log('Subscribed to ', shls.length);
+      eventSource = es;
+      es.addEventListener('connection', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('ES message cxn', data);
+      });
+    });
+
+    return () => {
+      console.log('Shuld close', eventSource);
+      eventSource?.close();
+    };
+  }, [shls]);
+
   useEffect(() => {
-    serverSyncer = new ServerStateSync(storeRef, dispatch, realServer);
+    serverSyncer = new ServerStateSync(storeRef, dispatch, server);
     defaultImmunizations.then((vs) => vs.forEach((vaccine) => dispatch({ type: 'vaccine-add', vaccine })));
   }, []);
 
-  let location = useLocation()
-  let initialLocation = useRef(location)
+  let location = useLocation();
+  let initialLocation = useRef(location);
   useEffect(() => {
     setTopNavValue(initialLocation.current.pathname!.split('/')[1]);
   }, [initialLocation]);

@@ -1,7 +1,8 @@
-import env from "./config.ts";
+import env from './config.ts';
 import { base64url, sqlite } from './deps.ts';
+import { clientConnectionListener } from './routers/api.ts';
 import { AccessToken, HealthLink, HealthLinkConfig, HealthLinkConnection, HealthLinkFile } from './types.ts';
-import { randomStringWithEntropy } from "./util.ts";
+import { randomStringWithEntropy } from './util.ts';
 
 const { DB } = sqlite;
 
@@ -25,16 +26,34 @@ export const DbLinks = {
       },
     );
   },
-  get(linkId: string): HealthLink {
-    const linkRow = db.prepareQuery(`SELECT * from shlink where token=?`).oneEntry([linkId]);
+  getManagedShl(linkId: string, managementToken: string): HealthLink {
+    const linkRow = db
+        .prepareQuery(`SELECT * from shlink where token=? and management_token=?`)
+        .oneEntry([linkId, managementToken]);
+
     return {
       token: linkRow.token as string,
-      active: linkRow.active as boolean,
+      active: Boolean(linkRow.active) as boolean,
       url: linkRow.url as string,
       managementToken: linkRow.management_token as string,
       config: {
         exp: linkRow.config_exp as number,
-        encrypted: linkRow.encrypted as boolean,
+        encrypted: Boolean(linkRow.encrypted) as boolean,
+        pin: linkRow.config_pin as string,
+      },
+    };
+  },
+  getShlInternal(linkId: string): HealthLink {
+    const linkRow = db.prepareQuery(`SELECT * from shlink where token=?`).oneEntry([linkId]);
+
+    return {
+      token: linkRow.token as string,
+      active: Boolean(linkRow.active) as boolean,
+      url: linkRow.url as string,
+      managementToken: linkRow.management_token as string,
+      config: {
+        exp: linkRow.config_exp as number,
+        encrypted: Boolean(linkRow.encrypted) as boolean,
         pin: linkRow.config_pin as string,
       },
     };
@@ -68,6 +87,8 @@ export const DbLinks = {
         registration: JSON.stringify(client.registration),
       },
     );
+    
+    clientConnectionListener(client)
   },
   fileNames(linkId: string): string[] {
     const files = db.queryEntries<{ content_hash: string }>(`select content_hash from shlink_file where shlink=?`, [
@@ -103,7 +124,6 @@ export const DbLinks = {
 
 export const DbTokens = new Map<string, AccessToken>();
 
-
 export function createDbLink(config: HealthLinkConfig): HealthLink {
   return {
     config,
@@ -121,10 +141,9 @@ export function lookupAuthzToken(authzToken: string, shlId: string) {
     DbTokens.delete(authzToken);
     return null;
   }
-  const shl = DbLinks.get(entry.shlink);
+  const shl = DbLinks.getShlInternal(entry.shlink);
   if (shl?.token !== shlId) {
     return null;
   }
   return shl;
 }
-

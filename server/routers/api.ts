@@ -1,7 +1,20 @@
-import { Router } from 'https://deno.land/x/oak@v10.5.1/router.ts';
+import env from '../config.ts';
+import { oak } from '../deps.ts';
 import { createDbLink, DbLinks, DbTokens, lookupAuthzToken } from '../db.ts';
-import { HealthLinkConfig } from '../types.ts';
-export const shlApiRouter = new Router()
+import { HealthLinkConfig, HealthLinkConnection } from '../types.ts';
+import { randomStringWithEntropy } from '../util.ts';
+
+type SubscriptionTicket = string;
+type SubscriptionSet = string[];
+const subscriptionTickets: Map<SubscriptionTicket, SubscriptionSet> = new Map();
+
+const accessLogSubscriptions: Map<string, oak.ServerSentEventTarget[]> = new Map();
+export const clientConnectionListener = (cxn: HealthLinkConnection) => {
+  const shl = cxn.shlink;
+  (accessLogSubscriptions.get(shl) || []).forEach((t) => t.dispatchEvent(new oak.ServerSentEvent('connection', cxn)));
+};
+
+export const shlApiRouter = new oak.Router()
   .post('/shl', async (context) => {
     const config: HealthLinkConfig = await context.request.body({ type: 'json' }).value;
     const newLink = createDbLink(config);
@@ -24,22 +37,12 @@ export const shlApiRouter = new Router()
     context.response.headers.set('content-type', file.contentType);
     context.response.body = file.content;
   })
-  .get('/shl/:shlId', (context) => {
-    //TODO Remove this debugging function
-    const shl = DbLinks.get(context.params.shlId)!;
-    context.response.headers.set('content-type', 'application/json');
-    context.response.body = {
-      ...shl,
-      files: undefined,
-      config: undefined,
-    };
-  })
   .post('/shl/:shlId/file', async (context) => {
-    const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1];
+    const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1]!;
     const newFileBody = await context.request.body({ type: 'bytes' });
 
-    const shl = DbLinks.get(context.params.shlId)!;
-    if (!shl || managementToken !== shl.managementToken) {
+    const shl = DbLinks.getManagedShl(context.params.shlId, managementToken)!;
+    if (!shl) {
       throw new Error(`Can't manage SHLink ` + context.params.shlId);
     }
 
@@ -53,4 +56,39 @@ export const shlApiRouter = new Router()
       ...shl,
       added,
     };
+  })
+  .post('/subscribe', async (context) => {
+    const shlSet: { token: string; managementToken: string }[] = await context.request.body({ type: 'json' }).value;
+    const managedLinks = shlSet.map((req) => DbLinks.getManagedShl(req.token, req.managementToken));
+    const ticket = randomStringWithEntropy(32, 'subscription-ticket-');
+    subscriptionTickets.set(
+      ticket,
+      managedLinks.map((l) => l.token),
+    );
+    setTimeout(() => {
+      subscriptionTickets.delete(ticket);
+    }, 15000);
+    context.response.body = { subscribe: `${env.PUBLIC_URL}/api/subscribe/${ticket}` };
+  })
+  .get('/subscribe/:ticket', (context) => {
+    const validForSet = subscriptionTickets.get(context.params.ticket);
+    if (!validForSet) {
+      throw 'Invalid ticket for SSE subscription';
+    }
+
+    const target = context.sendEvents();
+    for (const shl of validForSet) {
+      if (!accessLogSubscriptions.has(shl)) {
+        accessLogSubscriptions.set(shl, []);
+      }
+      accessLogSubscriptions.get(shl)!.push(target);
+      target.dispatchEvent(new oak.ServerSentEvent('status', DbLinks.getShlInternal(shl)));
+    }
+
+    target.addEventListener('close', () => {
+      for (const shl of validForSet) {
+        const idx = accessLogSubscriptions.get(shl)!.indexOf(target);
+        accessLogSubscriptions.get(shl)!.splice(idx);
+      }
+    });
   });
