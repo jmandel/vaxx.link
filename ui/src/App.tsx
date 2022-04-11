@@ -1,4 +1,4 @@
-import RestoreIcon from '@mui/icons-material/Restore';
+import VaccinesIcon from '@mui/icons-material/Vaccines';
 import Settings from '@mui/icons-material/Settings';
 import ShareIcon from '@mui/icons-material/Share';
 import { BottomNavigation, BottomNavigationAction } from '@mui/material';
@@ -53,12 +53,6 @@ interface SHLinkStatus {
   managementToken: string;
   connections: {
     name: string;
-    active: boolean;
-    jwk: Record<string, unknown>;
-    log: {
-      url: string;
-      date: number;
-    };
   }[];
 }
 
@@ -209,7 +203,6 @@ class ServerStateSync {
   async createShl(datasetId: number, serverConfig: SHLinkConfig) {
     let serverStatus = await this.server.createShl(serverConfig);
     let newShlinkId = idGenerator();
-    console.log('Created', serverStatus, newShlinkId);
     let encryptionKey;
     if (serverConfig.encrypted) {
       encryptionKey = new Uint8Array(32);
@@ -396,6 +389,7 @@ export function SHLinks() {
   let { store, dispatch } = useStore();
   let [qrDisplay, setQrDisplay] = useState({} as Record<number, boolean> | null);
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
+  let [accessLogDisplay, setAccessLogDisplay] = useState({} as Record<number, boolean>);
 
   useEffect(() => {
     let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
@@ -430,9 +424,16 @@ export function SHLinks() {
                 </em>
               </li>
               <li>
-                <em>Access count: {shl.serverStatus?.connections?.flatMap((l) => l.log).length}</em>
+                <em>Access count: {shl.serverStatus?.connections?.length}</em>
                 <br></br>
-                <button>See acccess log</button>
+                <button onClick={() => {
+                  setAccessLogDisplay((ld) => ({...ld, [shl.id]: !ld[shl.id]}), )
+                }}>See acccess log</button>
+                {
+                  accessLogDisplay[shl.id] && <ul>
+                    {[...new Set(shl.serverStatus?.connections.map(c => c.name))].map(name => <li key={name}>{name}</li>)}
+                  </ul>
+                }
               </li>
               <li>
                 Share
@@ -515,6 +516,10 @@ type AppAction =
       status: SHLinkStatus;
     }
   | {
+      type: 'shl-connection-add';
+      eventData: {shlink: string, registration: {name: string}}
+    }
+   | {
       type: 'shl-shc-sync';
       datasetId: number;
       shlinkId: number;
@@ -544,7 +549,15 @@ function reducer(state: AppState, action: AppAction): AppState {
       state.sharing[action.datasetId].shlinks[action.shlinkId].serverStatus = action.status;
     });
   }
-
+  if (action.type === 'shl-connection-add') {
+    const {shlink, registration} = action.eventData;
+    const datasetId = Object.values(state.sharing).filter(ds => Object.values(ds.shlinks).some(shl => shl.serverStatus?.token === shlink))[0].id;
+    const shlinkId = Object.values(state.sharing[datasetId].shlinks).filter(shl => shl.serverStatus?.token === shlink)[0].id
+    return produce(state, (state) => {
+      const serverStatus= state.sharing[datasetId].shlinks[shlinkId].serverStatus!
+      serverStatus.connections = [...(serverStatus.connections ?? []), {name: registration.name}]
+    });
+  }
   if (action.type === 'shl-shc-sync') {
     return produce(state, (state) => {
       if (action.shlServerStatus) {
@@ -609,16 +622,15 @@ function App() {
   useDeepCompareEffect(() => {
     let eventSource: EventSource;
     server.subscribeToShls(shls).then((es) => {
-      console.log('Subscribed to ', shls.length);
       eventSource = es;
       es.addEventListener('connection', (e) => {
-        const data = JSON.parse(e.data);
+        const data = JSON.parse(e.data) as {shlink: string, registration: {name: string}};
+        dispatch({type: 'shl-connection-add', eventData: data})
         console.log('ES message cxn', data);
       });
     });
 
     return () => {
-      console.log('Shuld close', eventSource);
       eventSource?.close();
     };
   }, [shls]);
@@ -645,7 +657,7 @@ function App() {
           setTopNavValue(newValue);
         }}
       >
-        <BottomNavigationAction label="Vaccines" component={NavLink} to="/" value="" icon={<RestoreIcon />} />
+        <BottomNavigationAction label="Vaccines" component={NavLink} to="/" value="" icon={<VaccinesIcon />} />
         <BottomNavigationAction
           label="Health Links"
           component={NavLink}
