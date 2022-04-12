@@ -422,7 +422,7 @@ export function SHLinkDetail() {
 export function SHLinks() {
   let navigate = useNavigate();
   let { store, dispatch } = useStore();
-  let [qrDisplay, setQrDisplay] = useState({} as Record<number, boolean> | null);
+  let [qrDisplay, setQrDisplay] = useState({} as Record<string|number, boolean> | null);
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
   let [accessLogDisplay, setAccessLogDisplay] = useState({} as Record<number, boolean>);
 
@@ -432,7 +432,7 @@ export function SHLinks() {
       allLinks.map(async (l) => [l.id, await QRCode.toDataURL(generateLinkUrl(l), { errorCorrectionLevel: 'medium' })]),
     ).then((qrs) => {
       setQrData(Object.fromEntries(qrs));
-      setQrDisplay(Object.fromEntries(qrs.map(([l, _]) => [l, false])));
+      setQrDisplay(Object.fromEntries(qrs.map(([l, _]) => ([l, Boolean(qrDisplay?.[l])]))));
     });
   }, [store.sharing]);
 
