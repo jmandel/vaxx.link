@@ -426,15 +426,17 @@ export function SHLinks() {
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
   let [accessLogDisplay, setAccessLogDisplay] = useState({} as Record<number, boolean>);
 
-  useEffect(() => {
-    let allLinks = Object.values(store.sharing).flatMap((r) => Object.values(r.shlinks));
+  let allLinks = Object.values(store.sharing)
+    .flatMap((r) => Object.values(r.shlinks))
+    .map(l =>({id: l.id, link: generateLinkUrl(l)}));
+
+  useDeepCompareEffect(() => {
     Promise.all(
-      allLinks.map(async (l) => [l.id, await QRCode.toDataURL(generateLinkUrl(l), { errorCorrectionLevel: 'medium' })]),
+      allLinks.map(async ({id, link}) => [id, await QRCode.toDataURL(link, { errorCorrectionLevel: 'high' })]),
     ).then((qrs) => {
       setQrData(Object.fromEntries(qrs));
-      setQrDisplay(Object.fromEntries(qrs.map(([l, _]) => ([l, Boolean(qrDisplay?.[l])]))));
     });
-  }, [store.sharing]);
+  }, [allLinks]);
 
   return (
     <div>
