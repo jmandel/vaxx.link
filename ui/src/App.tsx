@@ -167,12 +167,24 @@ const realServer: DataServer = {
     return result.json();
   },
   subscribeToShls: async (shls) => {
-    const ticket = await fetch(`${realServerBaseUrl}/subscribe`, {
-      method: 'POST',
-      body: JSON.stringify(shls),
-    });
-    const ticketUrl = (await ticket.json()).subscribe;
-    return new EventSource(ticketUrl);
+    console.log("new subscribe", shls)
+    async function connectOnce() {
+      const ticket = await fetch(`${realServerBaseUrl}/subscribe`, {
+        method: 'POST',
+        body: JSON.stringify(shls),
+      });
+      const ticketUrl = (await ticket.json()).subscribe;
+      return new EventSource(ticketUrl);
+    }
+
+    while (true) {
+      try {
+        const result = await connectOnce();
+        return result;
+      } catch {
+        await new Promise(res => setTimeout(res, 5000))
+      }
+    }
   },
 };
 
@@ -426,14 +438,20 @@ export function SHLinks() {
               <li>
                 <em>Access count: {shl.serverStatus?.connections?.length}</em>
                 <br></br>
-                <button onClick={() => {
-                  setAccessLogDisplay((ld) => ({...ld, [shl.id]: !ld[shl.id]}), )
-                }}>See acccess log</button>
-                {
-                  accessLogDisplay[shl.id] && <ul>
-                    {[...new Set(shl.serverStatus?.connections.map(c => c.name))].map(name => <li key={name}>{name}</li>)}
+                <button
+                  onClick={() => {
+                    setAccessLogDisplay((ld) => ({ ...ld, [shl.id]: !ld[shl.id] }));
+                  }}
+                >
+                  See acccess log
+                </button>
+                {accessLogDisplay[shl.id] && (
+                  <ul>
+                    {[...new Set(shl.serverStatus?.connections.map((c) => c.name))].map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
                   </ul>
-                }
+                )}
               </li>
               <li>
                 Share
@@ -517,9 +535,9 @@ type AppAction =
     }
   | {
       type: 'shl-connection-add';
-      eventData: {shlink: string, registration: {name: string}}
+      eventData: { shlink: string; registration: { name: string } };
     }
-   | {
+  | {
       type: 'shl-shc-sync';
       datasetId: number;
       shlinkId: number;
@@ -550,12 +568,16 @@ function reducer(state: AppState, action: AppAction): AppState {
     });
   }
   if (action.type === 'shl-connection-add') {
-    const {shlink, registration} = action.eventData;
-    const datasetId = Object.values(state.sharing).filter(ds => Object.values(ds.shlinks).some(shl => shl.serverStatus?.token === shlink))[0].id;
-    const shlinkId = Object.values(state.sharing[datasetId].shlinks).filter(shl => shl.serverStatus?.token === shlink)[0].id
+    const { shlink, registration } = action.eventData;
+    const datasetId = Object.values(state.sharing).filter((ds) =>
+      Object.values(ds.shlinks).some((shl) => shl.serverStatus?.token === shlink),
+    )[0].id;
+    const shlinkId = Object.values(state.sharing[datasetId].shlinks).filter(
+      (shl) => shl.serverStatus?.token === shlink,
+    )[0].id;
     return produce(state, (state) => {
-      const serverStatus= state.sharing[datasetId].shlinks[shlinkId].serverStatus!
-      serverStatus.connections = [...(serverStatus.connections ?? []), {name: registration.name}]
+      const serverStatus = state.sharing[datasetId].shlinks[shlinkId].serverStatus!;
+      serverStatus.connections = [...(serverStatus.connections ?? []), { name: registration.name }];
     });
   }
   if (action.type === 'shl-shc-sync') {
@@ -619,21 +641,42 @@ function App() {
     .flatMap((ds) => Object.values(ds.shlinks))
     .map((v) => ({ token: v.serverStatus?.token!, managementToken: v.serverStatus?.managementToken! }));
 
+  let [connectionCount, setConnectionCount] = useState(0);
   useDeepCompareEffect(() => {
     let eventSource: EventSource;
+    let keepaliveWatcher: NodeJS.Timer;
     server.subscribeToShls(shls).then((es) => {
       eventSource = es;
       es.addEventListener('connection', (e) => {
-        const data = JSON.parse(e.data) as {shlink: string, registration: {name: string}};
-        dispatch({type: 'shl-connection-add', eventData: data})
+        const data = JSON.parse(e.data) as { shlink: string; registration: { name: string } };
+        dispatch({ type: 'shl-connection-add', eventData: data });
         console.log('ES message cxn', data);
       });
+      function resetEs(){
+        es.close();
+        setConnectionCount(connectionCount+1);
+      }
+
+      // TODO move this logic into the connection manager
+      let stale = true;
+      es.addEventListener('keepalive', (e) => {
+        stale = false;
+      });
+      keepaliveWatcher = setInterval(function(){
+        if (stale) {
+          console.log("Failed; using keepalive") // TODO remove if this isn't used
+          resetEs()
+        }
+        stale = true;
+      }, 30000);
+      es.addEventListener('error', resetEs);
     });
 
     return () => {
+      keepaliveWatcher && clearInterval(keepaliveWatcher)
       eventSource?.close();
     };
-  }, [shls]);
+  }, [shls, connectionCount]);
 
   useEffect(() => {
     serverSyncer = new ServerStateSync(storeRef, dispatch, server);

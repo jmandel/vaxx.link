@@ -11,7 +11,9 @@ const subscriptionTickets: Map<SubscriptionTicket, SubscriptionSet> = new Map();
 const accessLogSubscriptions: Map<string, oak.ServerSentEventTarget[]> = new Map();
 export const clientConnectionListener = (cxn: HealthLinkConnection) => {
   const shl = cxn.shlink;
-  (accessLogSubscriptions.get(shl) || []).forEach((t) => t.dispatchEvent(new oak.ServerSentEvent('connection', cxn)));
+  (accessLogSubscriptions.get(shl) || []).forEach((t, i) => {
+    t.dispatchEvent(new oak.ServerSentEvent('connection', cxn));
+  });
 };
 
 export const shlApiRouter = new oak.Router()
@@ -67,7 +69,7 @@ export const shlApiRouter = new oak.Router()
     );
     setTimeout(() => {
       subscriptionTickets.delete(ticket);
-    }, 15000);
+    }, 10000);
     context.response.body = { subscribe: `${env.PUBLIC_URL}/api/subscribe/${ticket}` };
   })
   .get('/subscribe/:ticket', (context) => {
@@ -85,10 +87,15 @@ export const shlApiRouter = new oak.Router()
       target.dispatchEvent(new oak.ServerSentEvent('status', DbLinks.getShlInternal(shl)));
     }
 
+    const keepaliveInterval = setInterval(() => {
+      target.dispatchEvent(new oak.ServerSentEvent('keepalive', JSON.stringify({ shlCount: validForSet.length })));
+    }, 15000);
+
     target.addEventListener('close', () => {
+      clearInterval(keepaliveInterval);
       for (const shl of validForSet) {
         const idx = accessLogSubscriptions.get(shl)!.indexOf(target);
-        accessLogSubscriptions.get(shl)!.splice(idx);
+        accessLogSubscriptions.get(shl)!.splice(idx, 1);
       }
     });
   });
