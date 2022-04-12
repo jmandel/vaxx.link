@@ -112,7 +112,10 @@ interface DataSet {
 interface DataServer {
   storeShc: (shl: SHLink, shc: StoredSHC) => Promise<SHLinkStatus>;
   createShl: (shl: SHLink['serverConfig']) => Promise<SHLinkStatus>;
-  subscribeToShls: (shls: Pick<SHLinkStatus, 'token' | 'managementToken'>[]) => Promise<EventSource>;
+  subscribeToShls: (
+    shls: Pick<SHLinkStatus, 'token' | 'managementToken'>[],
+    reset?: () => void,
+  ) => Promise<{ eventSource: EventSource; cleanup: () => void }>;
 }
 
 const fakeServerDb: Record<string, Omit<SHLink, 'id' | 'name' | 'encryptionKey'>> = {};
@@ -141,7 +144,7 @@ const fakeServer: DataServer = {
     await new Promise((res) => setTimeout(() => res(null), 50));
     return Promise.resolve(JSON.parse(JSON.stringify(serverStatus)));
   },
-  subscribeToShls: async (shls) => Promise.resolve(null as unknown as EventSource),
+  subscribeToShls: async (shls) => Promise.resolve(null as any),
 };
 
 const realServerBaseUrl = process.env.REACT_APP_REAL_SERVER_BASE || `http://localhost:8000/api`;
@@ -166,8 +169,8 @@ const realServer: DataServer = {
     });
     return result.json();
   },
-  subscribeToShls: async (shls) => {
-    console.log("new subscribe", shls)
+  subscribeToShls: async (shls, reset) => {
+    console.log('new subscribe', shls);
     async function connectOnce() {
       const ticket = await fetch(`${realServerBaseUrl}/subscribe`, {
         method: 'POST',
@@ -179,10 +182,30 @@ const realServer: DataServer = {
 
     while (true) {
       try {
-        const result = await connectOnce();
-        return result;
+        const es = await connectOnce();
+        let keepaliveWatcher: NodeJS.Timer;
+        let stale = true;
+        es.addEventListener('keepalive', (e) => {
+          stale = false;
+        });
+        keepaliveWatcher = setInterval(function () {
+          if (stale) {
+            console.log('Failed; using keepalive'); // TODO remove if this isn't used
+            reset!();
+          }
+          stale = true;
+        }, 30000);
+        es.addEventListener('error', () => reset!());
+
+        return {
+          eventSource: es,
+          cleanup: () => {
+            es.close();
+            clearInterval(keepaliveWatcher);
+          },
+        };
       } catch {
-        await new Promise(res => setTimeout(res, 5000))
+        await new Promise((res) => setTimeout(res, 5000));
       }
     }
   },
@@ -643,38 +666,19 @@ function App() {
 
   let [connectionCount, setConnectionCount] = useState(0);
   useDeepCompareEffect(() => {
-    let eventSource: EventSource;
-    let keepaliveWatcher: NodeJS.Timer;
-    server.subscribeToShls(shls).then((es) => {
-      eventSource = es;
-      es.addEventListener('connection', (e) => {
+    let cleanupAsync: () => void;
+    (async function () {
+      const { eventSource, cleanup } = await server.subscribeToShls(shls, () => setConnectionCount(connectionCount+1));
+      cleanupAsync = cleanup;
+      eventSource.addEventListener('connection', (e) => {
         const data = JSON.parse(e.data) as { shlink: string; registration: { name: string } };
         dispatch({ type: 'shl-connection-add', eventData: data });
         console.log('ES message cxn', data);
       });
-      function resetEs(){
-        es.close();
-        setConnectionCount(connectionCount+1);
-      }
-
-      // TODO move this logic into the connection manager
-      let stale = true;
-      es.addEventListener('keepalive', (e) => {
-        stale = false;
-      });
-      keepaliveWatcher = setInterval(function(){
-        if (stale) {
-          console.log("Failed; using keepalive") // TODO remove if this isn't used
-          resetEs()
-        }
-        stale = true;
-      }, 30000);
-      es.addEventListener('error', resetEs);
-    });
+    })();
 
     return () => {
-      keepaliveWatcher && clearInterval(keepaliveWatcher)
-      eventSource?.close();
+      cleanupAsync && cleanupAsync();
     };
   }, [shls, connectionCount]);
 
