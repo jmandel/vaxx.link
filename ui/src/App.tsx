@@ -62,7 +62,7 @@ interface SHLink {
   name: string;
   serverConfig: SHLinkConfig;
   serverStatus?: SHLinkStatus;
-  encryptionKey?: Uint8Array;
+  encryptionKey?: string;
   uploads: Record<StoredSHC['id'], 'need-delete' | 'need-add' | 'present'>;
 }
 
@@ -91,7 +91,7 @@ function generateLinkUrl(shl: SHLink) {
     },
     exp: shl.serverConfig.exp,
     flags: shl.serverConfig.pin ? 'P' : '',
-    decrypt: shl.encryptionKey ? b64urlencode(shl.encryptionKey) : undefined,
+    decrypt: shl.encryptionKey ?? undefined,
   };
 
   const qrJson = JSON.stringify(qrPayload);
@@ -159,7 +159,7 @@ const realServer: DataServer = {
         new TextEncoder().encode(body)
       )
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM', contentType: 'application/smart-health-card' })
-        .encrypt(shl.encryptionKey)
+        .encrypt(jose.base64url.decode(shl.encryptionKey))
     }
     const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.token}/file`, {
       method: 'POST',
@@ -249,8 +249,9 @@ class ServerStateSync {
     let newShlinkId = idGenerator();
     let encryptionKey;
     if (serverConfig.encrypted) {
-      encryptionKey = new Uint8Array(32);
-      crypto.getRandomValues(encryptionKey);
+      const encryptionKeyBytes = new Uint8Array(32);
+      crypto.getRandomValues(encryptionKeyBytes);
+      encryptionKey = jose.base64url.encode(encryptionKeyBytes);
     }
     this.dispatch({
       type: 'shl-add',
@@ -258,7 +259,7 @@ class ServerStateSync {
       shlink: {
         id: newShlinkId,
         name: 'TODO remove names',
-        encryptionKey,
+        encryptionKey, 
         serverConfig,
         serverStatus,
         uploads: {},
