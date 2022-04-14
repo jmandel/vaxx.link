@@ -7,7 +7,9 @@
     <div>
       <input id="clientNameInput" value="Example SHL Client" /><br />
       <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onpaste="setTimeout(processInput)" oninput="processInput()" />
-      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" oninput="processInput()" />
+      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" />
+      <br />
+      <button onClick="processInput()">Retrieve SMART Health Link Data</button>
       <br />
       <div id="result" />
     </div>
