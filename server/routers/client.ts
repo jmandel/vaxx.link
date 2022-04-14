@@ -1,5 +1,4 @@
-import { jose, oak, base64url, queryString } from '../deps.ts';
-import { inflate } from 'https://deno.land/x/denoflate@1.2.1/mod.ts';
+import { jose, oak, base64url, queryString, inflate } from '../deps.ts';
 
 import {
   AccessTokenResponse,

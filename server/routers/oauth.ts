@@ -1,13 +1,10 @@
-import { Router } from 'https://deno.land/x/oak@v10.5.1/router.ts';
 import env from "../config.ts";
 import { DbLinks, DbTokens } from '../db.ts';
-import { jose } from "../deps.ts";
+import { jose, oak } from "../deps.ts";
 import { AccessToken, AccessTokenResponse, OAuthRegisterPayload } from '../types.ts';
 import { randomStringWithEntropy } from "../util.ts";
 
-import {clientConnectionListener} from "./api.ts"
-
-export const oauthRouter = new Router()
+export const oauthRouter = new oak.Router()
   .post('/register', async (context) => {
     const config: OAuthRegisterPayload = await context.request.body({ type: 'json' }).value;
 
