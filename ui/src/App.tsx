@@ -164,7 +164,7 @@ const realServer: DataServer = {
     const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.token}/file`, {
       method: 'POST',
       headers: {
-        'content-type': 'application/octet-stream',
+        'content-type': 'application/jose',
         authorization: `Bearer ${shl.serverStatus?.managementToken}`,
       },
       body
