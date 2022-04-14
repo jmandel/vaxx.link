@@ -68,7 +68,7 @@ interface SHLink {
 
 function b64urlencode(source: string | Uint8Array) {
   let s = source;
-  if (source.constructor === Uint8Array) {
+  if (source instanceof Uint8Array) {
     let i,
       len = source.length,
       bStr = '';
