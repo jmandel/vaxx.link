@@ -1,4 +1,4 @@
-import { jose, oak, base64url, queryString, inflate } from '../deps.ts';
+import { jose, oak, base64url, queryString, } from '../deps.ts';
 
 import {
   AccessTokenResponse,
@@ -10,7 +10,7 @@ import {
   SHLDecoded,
 } from '../types.ts';
 
-import { decodeBase64urlToJson, decodeToJson, randomStringWithEntropy } from '../util.ts';
+import { decodeBase64urlToJson, randomStringWithEntropy } from '../util.ts';
 const { Router } = oak;
 
 export const shlClientRouter = new Router()
@@ -44,6 +44,7 @@ export const shlClientRouter = new Router()
       tokenEndpoint: discovery.token_endpoint,
       clientId: registered.client_id,
       privateJwk: await jose.exportJWK(clientKey.privateKey),
+      shlDecrypt: parsedShl.decrypt,
     };
     const state = base64url.encode(JSON.stringify(stateDecoded));
     context.response.body = { state };
@@ -76,6 +77,8 @@ export const shlClientRouter = new Router()
 
     const tokenResponseJson = (await tokenResponse.json()) as AccessTokenResponse;
 
+
+
     const allFiles = await Promise.all(
       tokenResponseJson.authorization_details
         .flatMap((a) => a.locations)
@@ -89,20 +92,19 @@ export const shlClientRouter = new Router()
         ),
     );
 
-    const allShcJws = allFiles.flatMap((f) => JSON.parse(f)['verifiableCredential'] as string);
+  const decryptionKey = state.shlDecrypt ? base64url.decode(state.shlDecrypt) : null;
+  const allFilesDecrypted = allFiles.map(async (f) => {
+    if (decryptionKey) {
+      const decrypted = await jose.compactDecrypt(await f, decryptionKey);
+      const decoded = new TextDecoder().decode(decrypted.plaintext);
+      return decoded;
+    } else {
+      return f;
+    }
+  });
 
-    const result: SHLClientRetrieveResponse = {
-      shcs: allShcJws.map((jws) => {
-        const compressed = base64url.decode(jws.split('.')[1]);
-        const decompressed = decodeToJson(inflate(compressed));
-        return {
-          jws,
-          decoded: decompressed,
-          validated: false,
-        };
-      }),
-    };
-
+  const shcs = (await Promise.all(allFilesDecrypted)).flatMap((f) => JSON.parse(f)['verifiableCredential'] as string);
+  const result: SHLClientRetrieveResponse = { shcs };
     context.response.body = result;
   });
 

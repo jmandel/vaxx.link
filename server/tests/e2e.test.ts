@@ -1,7 +1,8 @@
+// deno-lint-ignore-file no-explicit-any
 import env from '../config.ts';
-import { jose, queryString, base64url } from '../deps.ts';
+import { jose, queryString, base64url, inflate } from '../deps.ts';
 import { HealthLink, OAuthRegisterResponse, AccessTokenResponse, SHLClientConnectResponse } from '../types.ts';
-import { randomStringWithEntropy } from '../util.ts';
+import { decodeToJson, randomStringWithEntropy } from '../util.ts';
 import * as assertions from 'https://deno.land/std@0.133.0/testing/asserts.ts';
 
 import app from '../server.ts';
@@ -20,7 +21,7 @@ Deno.test({
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          encrypted: true,
+          encrypted: false,
           pin: '1234',
         }),
       });
@@ -192,7 +193,11 @@ Deno.test({
     });
     assertions.assertEquals(shlClientConnectionResponse.status, 200);
     const shlClientRetrieve = await shlClientRetrieveResponse.json();
-    assertions.assertEquals(shlClientRetrieve.shcs[0].decoded.iss, 'https://spec.smarthealth.cards/examples/issuer');
+    
+    const jws = shlClientRetrieve.shcs[0]
+    const compressed = base64url.decode(jws.split('.')[1]);
+    const decompressed = <{iss: string}>decodeToJson(inflate(compressed));
+    assertions.assertEquals(decompressed.iss, 'https://spec.smarthealth.cards/examples/issuer');
   },
   sanitizeOps: false,
   sanitizeResources: false,

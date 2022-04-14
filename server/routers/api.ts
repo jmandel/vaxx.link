@@ -11,7 +11,7 @@ const subscriptionTickets: Map<SubscriptionTicket, SubscriptionSet> = new Map();
 const accessLogSubscriptions: Map<string, oak.ServerSentEventTarget[]> = new Map();
 export const clientConnectionListener = (cxn: HealthLinkConnection) => {
   const shl = cxn.shlink;
-  (accessLogSubscriptions.get(shl) || []).forEach((t, i) => {
+  (accessLogSubscriptions.get(shl) || []).forEach((t, _i) => {
     t.dispatchEvent(new oak.ServerSentEvent('connection', cxn));
   });
 };

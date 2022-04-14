@@ -72,7 +72,8 @@ export interface SHLDecoded {
   oauth: {
     token: string,
     url: string
-  }
+  },
+  decrypt?: string
 }
 
 export interface SHLClientConnectRequest {
@@ -85,7 +86,8 @@ export interface SHLClientConnectRequest {
 export interface SHLClientStateDecoded {
   tokenEndpoint: string,
   clientId: string,
-  privateJwk: jose.JWK
+  privateJwk: jose.JWK,
+  shlDecrypt?: string,
 }
 
 export interface SHLClientConnectResponse {
@@ -99,10 +101,6 @@ export interface SHLClientRetrieveRequest {
 }
 
 export interface SHLClientRetrieveResponse {
-  shcs: {
-    jws: string,
-    decoded: unknown,
-    validated: unknown
-  }[]
+  shcs: string[]
 }
 

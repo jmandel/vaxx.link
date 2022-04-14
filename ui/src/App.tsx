@@ -7,6 +7,7 @@ import produce from 'immer';
 import QRCode from 'qrcode';
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
+import * as  jose from 'jose';
 
 import {
   NavLink,
@@ -152,13 +153,21 @@ const realServerBaseUrl = process.env.REACT_APP_REAL_SERVER_BASE || `http://loca
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const realServer: DataServer = {
   storeShc: async (shl, shc) => {
+    let body = JSON.stringify({ verifiableCredential: [shc.jws] });
+    if (shl.encryptionKey) {
+      body = await new jose.CompactEncrypt(
+        new TextEncoder().encode(body)
+      )
+        .setProtectedHeader({ alg: 'dir', enc: 'A256GCM', contentType: 'application/smart-health-card' })
+        .encrypt(shl.encryptionKey)
+    }
     const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.token}/file`, {
       method: 'POST',
       headers: {
-        'content-type': 'application/smart-health-card',
+        'content-type': 'application/octet-stream',
         authorization: `Bearer ${shl.serverStatus?.managementToken}`,
       },
-      body: JSON.stringify({ verifiableCredential: [shc.jws] }),
+      body
     });
     return result.json();
   },
