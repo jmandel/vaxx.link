@@ -29,7 +29,7 @@ export const oauthRouter = new oak.Router()
     
     if (shl.config.pin && shl.config.pin !== shlPin) {
       DbLinks.recordPinFailure(shlId);
-      throw `Cannot authorize; invalid PIN ${shlPin},${shl.config.pin}`;
+      throw 'Cannot authorize; invalid PIN';
     }
 
     const clientId = randomStringWithEntropy(32);
