@@ -8,7 +8,13 @@ const { DB } = sqlite;
 
 const db = new DB('./db/vaxx.db');
 const schema = await Deno.readTextFile('./schema.sql');
-db.execute(schema);
+schema.split(/\n\n/).forEach((q) => {
+  try {
+    db.execute(q);
+  } catch (e) {
+    if (!q.match('migration_ok_to_fail')) throw e;
+  }
+});
 
 export const DbLinks = {
   create(link: HealthLink) {
@@ -28,8 +34,8 @@ export const DbLinks = {
   },
   getManagedShl(linkId: string, managementToken: string): HealthLink {
     const linkRow = db
-        .prepareQuery(`SELECT * from shlink where token=? and management_token=?`)
-        .oneEntry([linkId, managementToken]);
+      .prepareQuery(`SELECT * from shlink where token=? and management_token=?`)
+      .oneEntry([linkId, managementToken]);
 
     return {
       token: linkRow.token as string,
@@ -87,8 +93,8 @@ export const DbLinks = {
         registration: JSON.stringify(client.registration),
       },
     );
-    
-    clientConnectionListener(client)
+
+    clientConnectionListener(client);
   },
   fileNames(linkId: string): string[] {
     const files = db.queryEntries<{ content_hash: string }>(`select content_hash from shlink_file where shlink=?`, [
@@ -119,6 +125,10 @@ export const DbLinks = {
       log: [],
     };
     return clientConnection;
+  },
+  recordPinFailure(shlId: string) {
+    const q = db.prepareQuery(`update shlink set pin_failures_remaining = pin_failures_remaining - 1 where token=?`);
+    q.execute([shlId]);
   },
 };
 

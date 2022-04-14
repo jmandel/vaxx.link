@@ -2,7 +2,6 @@ import  base64url from 'base64url';
 import * as jose from "jose";
 import * as querystring from "querystring";
 import {inflateRaw, deflateRaw} from "pako";
-import * as shcDecoder from 'smart-health-card-decoder'
 
 export interface SHLClientConnectRequest {
   clientName: string,
@@ -108,6 +107,7 @@ async function connect(config: SHLClientConnectRequest){
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${parsedShl.oauth.token}`,
+        ...config.pin ? {'shlink-pin': config.pin!} : {}
       },
       body: JSON.stringify({
         token_endpoint_auth_method: 'private_key_jwt',

@@ -26,6 +26,7 @@ export const shlClientRouter = new Router()
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${parsedShl.oauth.token}`,
+        ...config.pin ? {'shlink-pin': config.pin!} : {}
       },
       body: JSON.stringify({
         token_endpoint_auth_method: 'private_key_jwt',

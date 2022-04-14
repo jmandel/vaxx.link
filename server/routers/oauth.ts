@@ -17,6 +17,7 @@ export const oauthRouter = new oak.Router()
     }
 
     const shlId = context.request.headers.get('authorization')!.split(/bearer /i)[1];
+    const shlPin = context.request.headers.get('shlink-pin');
     const shl = DbLinks.getShlInternal(shlId);
     if (!shl) {
       throw 'Cannot authorize; SHL does not exist';
@@ -24,6 +25,11 @@ export const oauthRouter = new oak.Router()
 
     if (!shl.active) {
       throw 'Cannot authorize; SHL is not active';
+    }
+    
+    if (shl.config.pin && shl.config.pin !== shlPin) {
+      DbLinks.recordPinFailure(shlId);
+      throw `Cannot authorize; invalid PIN ${shlPin},${shl.config.pin}`;
     }
 
     const clientId = randomStringWithEntropy(32);

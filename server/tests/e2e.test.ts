@@ -75,25 +75,33 @@ Deno.test({
     });
 
     let registered: any;
-    await t.step('Register with SHL Server', async function () {
-      const pk = await jose.exportJWK(clientKey.publicKey);
-      const registeredResponse = await fetch(`${discovery!.registration_endpoint}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${shl.token}`,
+    const pk = await jose.exportJWK(clientKey.publicKey);
+    const registrationRequest = {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${shl!.token}`,
+        'shlink-pin': 'bad-pin',
+      },
+      body: JSON.stringify({
+        token_endpoint_auth_method: 'private_key_jwt',
+        grant_types: ['client_credentials'],
+        jwks: {
+          keys: [pk],
         },
-        body: JSON.stringify({
-          token_endpoint_auth_method: 'private_key_jwt',
-          grant_types: ['client_credentials'],
-          jwks: {
-            keys: [pk],
-          },
-          client_name: "Dr. B's Quick Response Squared", // optional
-          contacts: ['drjones@clinic.com'], // optional
-        }),
-      });
+        client_name: "Dr. B's Quick Response Squared", // optional
+        contacts: ['drjones@clinic.com'], // optional
+      }),
+    };
 
+    await t.step('Fail registration with invalid PIN', async function () {
+      const registeredResponse = await fetch(`${discovery!.registration_endpoint}`, registrationRequest);
+      assertions.assertEquals(registeredResponse.status, 500);
+    });
+
+    await t.step('Register with SHL Server', async function () {
+      registrationRequest.headers['shlink-pin'] = '1234';
+      const registeredResponse = await fetch(`${discovery!.registration_endpoint}`, registrationRequest);
       assertions.assertEquals(registeredResponse.status, 200);
       registered = (await registeredResponse.json()) as OAuthRegisterResponse;
     });
@@ -102,9 +110,9 @@ Deno.test({
       const sseReader = sseRequest.body?.getReader();
       const readEvent = await sseReader?.read().then(function readChunk(v) {
         const [eventType, eventBody] = new TextDecoder().decode(v.value).split(/\n/, 2);
-        return {type: eventType.split(": ", 2)[1], body: JSON.parse(eventBody.split(": ", 2)[1])}
+        return { type: eventType.split(': ', 2)[1], body: JSON.parse(eventBody.split(': ', 2)[1]) };
       });
-      assertions.assert(readEvent?.type === "status");
+      assertions.assert(readEvent?.type === 'status');
       assertions.assert(readEvent?.body.token === shl.token && readEvent.body.active);
     });
 
@@ -158,6 +166,7 @@ Deno.test({
       },
       body: JSON.stringify({
         clientName: 'Test Client',
+        pin: '1234',
         shl: `shlink:/${base64url.encode(
           JSON.stringify({
             oauth: {
@@ -184,7 +193,6 @@ Deno.test({
     assertions.assertEquals(shlClientConnectionResponse.status, 200);
     const shlClientRetrieve = await shlClientRetrieveResponse.json();
     assertions.assertEquals(shlClientRetrieve.shcs[0].decoded.iss, 'https://spec.smarthealth.cards/examples/issuer');
-
   },
   sanitizeOps: false,
   sanitizeResources: false,

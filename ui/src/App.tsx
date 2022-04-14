@@ -348,7 +348,7 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
 export function SHLinkCreate() {
   let navigate = useNavigate();
   let { store } = useStore();
-  let [usePin, setUsePin] = useState(true);
+  let [usePin, setUsePin] = useState(false);
   let [pin, setPin] = useState('1234');
   let [expires, setExpires] = useState(false);
 
@@ -372,7 +372,7 @@ export function SHLinkCreate() {
   return (
     <>
       {' '}
-      <div>Create new: {store.sharing[datasetId].name}</div>{' '}
+      <h3>New SMART Health Link: {store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
         checked={usePin}

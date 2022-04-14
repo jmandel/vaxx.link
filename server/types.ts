@@ -78,7 +78,8 @@ export interface SHLDecoded {
 export interface SHLClientConnectRequest {
   clientName: string,
   clientContact?: string,
-  shl: string
+  shl: string,
+  pin?: string,
 }
 
 export interface SHLClientStateDecoded {
