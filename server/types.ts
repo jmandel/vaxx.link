@@ -13,6 +13,7 @@ export interface HealthLink {
   active: boolean;
   id: string;
   managementToken: string;
+  pinFailuresRemaining: number;
 }
 
 export interface HealthLinkManifestRequest {

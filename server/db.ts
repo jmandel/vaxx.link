@@ -49,6 +49,7 @@ export const DbLinks = {
 
     return {
       id: linkRow.id as string,
+      pinFailuresRemaining: linkRow.pin_failures_remaining as number,
       active: Boolean(linkRow.active) as boolean,
       managementToken: linkRow.management_token as string,
       config: {
@@ -61,6 +62,7 @@ export const DbLinks = {
     const linkRow = db.prepareQuery(`SELECT * from shlink where id=?`).oneEntry([linkId]);
     return {
       id: linkRow.id as string,
+      pinFailuresRemaining: linkRow.pin_failures_remaining as number,
       active: Boolean(linkRow.active) as boolean,
       managementToken: linkRow.management_token as string,
       config: {

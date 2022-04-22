@@ -48,7 +48,9 @@ export const shlApiRouter = new oak.Router()
 
     if (shl.config.pin && shl.config.pin !== config.pin) {
       db.DbLinks.recordPinFailure(shl.id);
-      throw 'Cannot resolve manifest; invalid PIN';
+      context.response.status = 401;
+      context.response.body = {remainingAttempts: shl.pinFailuresRemaining-1}
+      return;
     }
 
     const ticket = randomStringWithEntropy(32);
@@ -60,6 +62,7 @@ export const shlApiRouter = new oak.Router()
     }, 60000);
     db.DbLinks.recordAccess(shl.id, config.recipient);
 
+    context.response.headers.set("expires", new Date().toUTCString())
     context.response.body = {
       files: db.DbLinks.getManifestFiles(shl.id).map((f, _i) => ({
         contentType: f.contentType,
