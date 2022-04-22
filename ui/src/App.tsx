@@ -472,7 +472,7 @@ export function SHLinks() {
                 </button>
                 {accessLogDisplay[shl.id] && (
                   <ul>
-                    {[...new Set(shl.serverStatus?.recipients.map((c) => c.name))].map((name) => (
+                    {[...new Set(shl.serverStatus?.recipients?.map((c) => c.name))].map((name) => (
                       <li key={name}>{name}</li>
                     ))}
                   </ul>
@@ -664,7 +664,7 @@ function App() {
 
   const shls = Object.values(store.sharing)
     .flatMap((ds) => Object.values(ds.shlinks))
-    .map((v) => ({ shlId: v.serverStatus?.id!, managementToken: v.serverStatus?.managementToken! }));
+    .map((v) => ({ shlId: v.serverStatus!.id, managementToken: v.serverStatus?.managementToken! }));
 
   let [connectionCount, setConnectionCount] = useState(0);
   useDeepCompareEffect(() => {

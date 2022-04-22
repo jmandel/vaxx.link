@@ -58,6 +58,7 @@ export const shlApiRouter = new oak.Router()
     setTimeout(() => {
       fileTickets.delete(ticket);
     }, 60000)
+    db.DbLinks.recordAccess(shl.id, config.recipient);
 
     context.response.body = {
       files: db.DbLinks.getManifestFiles(shl.id).map((f, _i) => ({
@@ -106,6 +107,8 @@ export const shlApiRouter = new oak.Router()
   .post('/subscribe', async (context) => {
     const shlSet: { shlId: string; managementToken: string }[] = await context.request.body({ type: 'json' }).value;
     const managedLinks = shlSet.map((req) => db.DbLinks.getManagedShl(req.shlId, req.managementToken));
+
+
     const ticket = randomStringWithEntropy(32, 'subscription-ticket-');
     subscriptionTickets.set(
       ticket,
