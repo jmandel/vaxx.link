@@ -5,8 +5,14 @@
   <body>
     <h1>Retrieve Data for SMART Health Link</h1>
     <div>
-      <input id="clientNameInput" value="Example SHL Client" /><br />
-      <input id="shlInput" autofocus placeholder="Paste SMART Health Link" onpaste="setTimeout(processInput)" oninput="processInput()" />
+      <input id="recipientNameInput" value="Example SHL Client" /><br />
+      <input
+        id="shlInput"
+        autofocus
+        placeholder="Paste SMART Health Link"
+        onpaste="setTimeout(processInput)"
+        oninput="processInput()"
+      />
       <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" />
       <br />
       <button onClick="processInput()">Retrieve SMART Health Link Data</button>
@@ -16,11 +22,11 @@
 
     <script type="module">
       import * as shl from './index.js';
-      import {verify} from './shc-decoder.js';
-      console.log("SH", shl);
+      import { verify } from './shc-decoder.js';
+      console.log('SH', shl);
       window.processInput = processInput;
 
-      const clientNameText = document.getElementById('clientNameInput');
+      const recipientNameText = document.getElementById('recipientNameInput');
       const shlText = document.getElementById('shlInput');
       const pinText = document.getElementById('pinInput');
       const result = document.getElementById('result');
@@ -32,7 +38,7 @@
       }
 
       async function processInput() {
-        const needPin = await shl.needPin({ shl: shlText.value });
+        const needPin = shl.flag({ shl: shlText.value }).includes('P');
         if (needPin) {
           pinText.setAttribute('style', 'width: 5rem; opacity: 100%;');
           if (pinText.value === '') {
@@ -42,14 +48,14 @@
         } else {
           pinText.setAttribute('style', 'width: 5rem; opacity: 20%');
         }
-        console.log('Connect', shlText.value, pinText.value);
-        const connection = await shl.connect({
+        console.log('Retrieve', shlText.value, pinText.value);
+        const retrieved = await shl.retrieve({
           shl: shlText.value,
           pin: pinText.value,
-          clientName: clientNameText.value,
+          recipient: recipientNameText.value,
         });
-        const pulled = await shl.pull(connection);
-        const decoded = await Promise.all(pulled.shcs.map(verify))
+        console.log('Retrieved', retrieved);
+        const decoded = await Promise.all(retrieved.shcs.map(verify));
         result.innerHTML = `
         <div>
           ${decoded.length} Health Cards retrieved for 
