@@ -3,53 +3,36 @@ import * as jose from 'jose';
 import * as querystring from 'querystring';
 import { inflateRaw, deflateRaw } from 'pako';
 
-export interface SHLClientConnectRequest {
-  clientName: string;
-  clientContact?: string;
+export interface SHLinkConnectRequest {
   shl: string;
+  recipient: string;
   pin?: string;
 }
 
-export interface SHLClientStateDecoded {
-  tokenEndpoint: string;
-  clientId: string;
-  privateJwk: jose.JWK;
-  shlDecrypt?: string;
-}
-
-export interface SHLClientConnectResponse {
+export interface SHLinkConnectResponse {
   state: string;
-}
-
-export interface SHLClientRetrieveRequest {
-  state: string;
-  validateSHCs: boolean;
-  acceptExampleSHCs: boolean;
-}
-
-export interface SHLClientRetrieveResponse {
   shcs: string[];
 }
 
+export interface SHLClientStateDecoded {
+  url: string;
+  decrypt: string;
+  recipient: string;
+  pin?: string;
+}
+
 export interface SHLDecoded {
-  flags?: string;
-  oauth: {
-    token: string;
-    url: string;
-  };
-  decrypt?: string;
+  url: string;
+  decrypt: string;
+  flag?: string;
+  label?: string;
 }
 
-export interface OAuthRegisterPayload {
-  token_endpoint_auth_method: 'private_key_jwt';
-  grant_types: ['client_credentials'];
-  jwks: jose.JSONWebKeySet;
-  client_name?: string;
-  contacts?: string[];
-}
-
-export interface OAuthRegisterResponse extends OAuthRegisterPayload {
-  client_id: string;
+export interface SHLManifestFile {
+  files: {
+    contentType: string;
+    location: string;
+  }[];
 }
 
 export function randomStringWithEntropy(entropy: number) {
@@ -66,122 +49,58 @@ export function decodeToJson<T>(s: Uint8Array): T {
   return JSON.parse(new TextDecoder().decode(s)) as T;
 }
 
-export interface AccessTokenResponse {
-  access_token: string;
-  expires_in: number;
-  authorization_details: ResourceAccessRight[];
+export interface Manifest {
+  file: { contentType: string; location: string }[];
 }
 
-export interface ResourceAccessRight {
-  type: 'shlink-view';
-  locations: string[];
-}
-
-async function flags(config: { shl: string }) {
+function flag(config: { shl: string }) {
   const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
   const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
-  return parsedShl?.flags;
+  return parsedShl?.flag;
 }
 
-async function needPin(config: { shl: string }) {
+function needPin(config: { shl: string }) {
   const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
   const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
-  if (parsedShl.flags?.includes('P')) {
+  if (parsedShl.flag?.includes('P')) {
     return true;
   }
 
   return false;
 }
 
-async function connect(config: SHLClientConnectRequest) {
+async function retrieve(configIncoming: SHLinkConnectRequest | {state: string}) {
+  const config: SHLinkConnectRequest = configIncoming["state"] ? JSON.parse(base64url.decode(configIncoming["state"])) : configIncoming
   const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
   const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
-  const clientKey = await jose.generateKeyPair('ES256', { extractable: true });
-  const discoveryResponse = await fetch(`${parsedShl.oauth.url}/.well-known/smart-configuration`);
-  const discovery: { token_endpoint: string; registration_endpoint: string } = await discoveryResponse.json();
-  const registeredResponse = await fetch(`${discovery!.registration_endpoint}`, {
+  const manifestResponse = await fetch(parsedShl.url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      authorization: `Bearer ${parsedShl.oauth.token}`,
-      ...(config.pin ? { 'shlink-pin': config.pin! } : {}),
     },
     body: JSON.stringify({
-      token_endpoint_auth_method: 'private_key_jwt',
-      grant_types: ['client_credentials'],
-      jwks: {
-        keys: [await jose.exportJWK(clientKey.publicKey)],
-      },
-      client_name: config.clientName, // optional
-      contacts: config.clientContact ? [config.clientContact] : undefined,
+      pin: config.pin,
+      recipient: config.recipient,
     }),
   });
 
-  const registered = (await registeredResponse.json()) as OAuthRegisterResponse;
-  const stateDecoded: SHLClientStateDecoded = {
-    tokenEndpoint: discovery.token_endpoint,
-    clientId: registered.client_id,
-    privateJwk: await jose.exportJWK(clientKey.privateKey),
-    shlDecrypt: parsedShl.decrypt,
-  };
-  const state = base64url.encode(JSON.stringify(stateDecoded));
-  return { state };
-}
+  const manifestResponseJson = (await manifestResponse.json()) as SHLManifestFile;
 
-async function pull(config: SHLClientRetrieveRequest) {
-  const state: SHLClientStateDecoded = decodeBase64urlToJson<SHLClientStateDecoded>(config.state);
-  const clientKey = await jose.importJWK(state.privateJwk, 'ES256');
-  const clientAssertion = await new jose.SignJWT({})
-    .setIssuer(state.clientId)
-    .setSubject(state.clientId)
-    .setAudience(state.tokenEndpoint)
-    .setExpirationTime('3 minutes')
-    .setProtectedHeader({ alg: 'ES256' })
-    .setJti(randomStringWithEntropy(32))
-    .sign(clientKey);
+  const allFiles = manifestResponseJson.files
+    .filter((f) => f.contentType === 'application/smart-health-card')
+    .map((f) => fetch(f.location).then((f) => f.text()));
 
-  const tokenResponse = await fetch(`${state.tokenEndpoint}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      'Shlink-Pin': '1234',
-    },
-    body: querystring.stringify({
-      scope: '__shlinks',
-      grant_type: 'client_credentials',
-      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      client_assertion: clientAssertion,
-    }),
-  });
-
-  const tokenResponseJson = (await tokenResponse.json()) as AccessTokenResponse;
-
-  const allFiles = tokenResponseJson.authorization_details
-    .flatMap((a) => a.locations)
-    .map(
-      (l) =>
-        fetch(l, {
-          headers: {
-            authorization: `Bearer ${tokenResponseJson.access_token}`,
-          },
-        }).then((f) => f.text()), // TODO deal with other content types
-    );
-
-  const decryptionKey = state.shlDecrypt ? base64url.toBuffer(state.shlDecrypt) : null;
+  const decryptionKey = base64url.toBuffer(parsedShl.decrypt);
   const allFilesDecrypted = allFiles.map(async (f) => {
-    if (decryptionKey) {
-      const decrypted = await jose.compactDecrypt(await f, decryptionKey);
-      const decoded = new TextDecoder().decode(decrypted.plaintext);
-      return decoded;
-    } else {
-      return f;
-    }
+    const decrypted = await jose.compactDecrypt(await f, decryptionKey);
+    const decoded = new TextDecoder().decode(decrypted.plaintext);
+    return decoded;
   });
 
   const shcs = (await Promise.all(allFilesDecrypted)).flatMap((f) => JSON.parse(f)['verifiableCredential'] as string);
-  const result: SHLClientRetrieveResponse = { shcs };
+  const result: SHLinkConnectResponse = { shcs, state: base64url.encode(JSON.stringify(config))};
 
   return result;
 }
 
-export { flags, needPin, connect, pull };
+export { flag, retrieve };

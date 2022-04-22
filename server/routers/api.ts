@@ -1,7 +1,7 @@
 import env from '../config.ts';
 import { oak } from '../deps.ts';
-import { createDbLink, DbLinks, DbTokens, lookupAuthzToken } from '../db.ts';
-import { HealthLinkConfig, HealthLinkConnection } from '../types.ts';
+import * as db from '../db.ts';
+import * as types from '../types.ts';
 import { randomStringWithEntropy } from '../util.ts';
 
 type SubscriptionTicket = string;
@@ -9,41 +9,85 @@ type SubscriptionSet = string[];
 const subscriptionTickets: Map<SubscriptionTicket, SubscriptionSet> = new Map();
 
 const accessLogSubscriptions: Map<string, oak.ServerSentEventTarget[]> = new Map();
-export const clientConnectionListener = (cxn: HealthLinkConnection) => {
-  const shl = cxn.shlink;
-  (accessLogSubscriptions.get(shl) || []).forEach((t, _i) => {
+interface ClientConnectionMessage {
+  shlId: string;
+  recipient: string;
+}
+export const clientConnectionListener = (cxn: ClientConnectionMessage) => {
+  (accessLogSubscriptions.get(cxn.shlId) || []).forEach((t, _i) => {
     t.dispatchEvent(new oak.ServerSentEvent('connection', cxn));
   });
 };
 
+interface FileTicket {
+  shlId: string;
+}
+const fileTickets: Map<string, FileTicket> = new Map();
+
 export const shlApiRouter = new oak.Router()
   .post('/shl', async (context) => {
-    const config: HealthLinkConfig = await context.request.body({ type: 'json' }).value;
-    const newLink = createDbLink(config);
-    DbLinks.create(newLink);
+    const config: types.HealthLinkConfig = await context.request.body({ type: 'json' }).value;
+    const newLink = db.DbLinks.create(config);
     context.response.body = {
       ...newLink,
       files: undefined,
       config: undefined,
     };
   })
-  .get('/shl/:shlId/file/:fileIndex', (context) => {
-    const authzToken = context.request.headers.get('authorization')!.split(/bearer /i)[1];
-    const shl = lookupAuthzToken(authzToken, context.params.shlId);
+  .post('/shl/:shlId', async (context) => {
+    const config: types.HealthLinkManifestRequest = await context.request.body({ type: 'json' }).value;
+
+    const shl = db.DbLinks.getShlInternal(context.params.shlId);
     if (!shl) {
-      console.log('Invalid token', authzToken, DbTokens.get(authzToken));
+      throw 'Cannot resolve manifest; SHL does not exist';
+    }
+
+    if (!shl.active) {
+      throw 'Cannot resolve manifest; SHL is not active';
+    }
+
+    if (shl.config.pin && shl.config.pin !== config.pin) {
+      db.DbLinks.recordPinFailure(shl.id);
+      throw 'Cannot resolve manifest; invalid PIN';
+    }
+
+    const ticket = randomStringWithEntropy(32);
+    fileTickets.set(ticket, {
+      shlId: shl.id,
+    })
+    setTimeout(() => {
+      fileTickets.delete(ticket);
+    }, 60000)
+
+    context.response.body = {
+      files: db.DbLinks.getManifestFiles(shl.id).map((f, _i) => ({
+        contentType: f.contentType,
+        location: `${env.PUBLIC_URL}/api/shl/${shl.id}/file/${f.hash}?ticket=${ticket}`,
+      })),
+    };
+
+  })
+  .get('/shl/:shlId/file/:fileIndex', (context) => {
+    const fileTicket = fileTickets.get(context.request.url.searchParams.get('ticket')!);
+    if (!fileTicket) {
+      console.log('Cannot request SHL without a valid ticket');
       return (context.response.status = 401);
     }
 
-    const file = DbLinks.getFile(shl.token, context.params.fileIndex);
-    context.response.headers.set('content-type', file.contentType);
+    if (fileTicket.shlId !== context.params.shlId) {
+      console.log('Ticket is not valid for ' + context.params.shlId);
+      return (context.response.status = 401);
+    }
+
+    const file = db.DbLinks.getFile(context.params.shlId, context.params.fileIndex);
+    context.response.headers.set('content-type', "application/jose");
     context.response.body = file.content;
   })
   .post('/shl/:shlId/file', async (context) => {
     const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1]!;
     const newFileBody = await context.request.body({ type: 'bytes' });
 
-    const shl = DbLinks.getManagedShl(context.params.shlId, managementToken)!;
+    const shl = db.DbLinks.getManagedShl(context.params.shlId, managementToken)!;
     if (!shl) {
       throw new Error(`Can't manage SHLink ` + context.params.shlId);
     }
@@ -53,19 +97,19 @@ export const shlApiRouter = new oak.Router()
       content: await newFileBody.value,
     };
 
-    const added = DbLinks.addFile(shl.token, newFile);
+    const added = db.DbLinks.addFile(shl.id, newFile);
     context.response.body = {
       ...shl,
       added,
     };
   })
   .post('/subscribe', async (context) => {
-    const shlSet: { token: string; managementToken: string }[] = await context.request.body({ type: 'json' }).value;
-    const managedLinks = shlSet.map((req) => DbLinks.getManagedShl(req.token, req.managementToken));
+    const shlSet: { shlId: string; managementToken: string }[] = await context.request.body({ type: 'json' }).value;
+    const managedLinks = shlSet.map((req) => db.DbLinks.getManagedShl(req.shlId, req.managementToken));
     const ticket = randomStringWithEntropy(32, 'subscription-ticket-');
     subscriptionTickets.set(
       ticket,
-      managedLinks.map((l) => l.token),
+      managedLinks.map((l) => l.id),
     );
     setTimeout(() => {
       subscriptionTickets.delete(ticket);
@@ -84,7 +128,7 @@ export const shlApiRouter = new oak.Router()
         accessLogSubscriptions.set(shl, []);
       }
       accessLogSubscriptions.get(shl)!.push(target);
-      target.dispatchEvent(new oak.ServerSentEvent('status', DbLinks.getShlInternal(shl)));
+      target.dispatchEvent(new oak.ServerSentEvent('status', db.DbLinks.getShlInternal(shl)));
     }
 
     const keepaliveInterval = setInterval(() => {
@@ -99,3 +143,13 @@ export const shlApiRouter = new oak.Router()
       }
     });
   });
+
+/*
+  .post('/register', (context) => {
+  })
+  /*
+    files: DbLinks.fileNames(client.shlink).map(
+            (f, _i) => ({contentType: f.contentType, location: `${env.PUBLIC_URL}/api/shl/${client.shlink}/file/${f}`}),
+    ),
+
+  */

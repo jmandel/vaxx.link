@@ -8,7 +8,7 @@ function onOpen() {
 
 function showSidebarConnect() {
   const template = HtmlService.createTemplateFromFile("Page");
-  template.clientName = shlClientName();
+  template.recipientName = shlRecipientName();
   template.shl = SpreadsheetApp.getActive()
     .getActiveSheet()
     .getActiveCell()
@@ -22,7 +22,7 @@ function showSidebarConnect() {
 
 function showSidebarRetrieve() {
   const template = HtmlService.createTemplateFromFile("Page");
-  template.clientName = shlClientName();
+  template.recipientName = shlRecipientName();
   template.shl = "";
 
   if (
@@ -117,11 +117,11 @@ function returnStateLink(stateLink, shcMessage) {
   nextCell.setValue(shcMessage.hepb);
 }
 
-function shlClientName() {
+function shlRecipientName() {
   const range =
-    SpreadsheetApp.getActiveSpreadsheet().getRangeByName("shl_client_name");
+    SpreadsheetApp.getActiveSpreadsheet().getRangeByName("shl_recipient_name");
   if (range != null) {
     return range.getCell(1, 1).getValue();
   }
-  return "Unknown SHL Client";
+  return "Unknown SHL Recipient";
 }

@@ -1,7 +1,6 @@
-import env from './config.ts';
 import { base64url, sqlite } from './deps.ts';
 import { clientConnectionListener } from './routers/api.ts';
-import { AccessToken, HealthLink, HealthLinkConfig, HealthLinkConnection, HealthLinkFile } from './types.ts';
+import * as types from './types.ts';
 import { randomStringWithEntropy } from './util.ts';
 
 const { DB } = sqlite;
@@ -12,59 +11,60 @@ schema.split(/\n\n/).forEach((q) => {
   try {
     db.execute(q);
   } catch (e) {
-    if (!q.match('migration_ok_to_fail')) throw e;
+    if (!q.match('ok_to_fail')) throw e;
   }
 });
 
 export const DbLinks = {
-  create(link: HealthLink) {
+  create(config: types.HealthLinkConfig) {
+    const link = {
+      config,
+      id: randomStringWithEntropy(32),
+      managementToken: randomStringWithEntropy(32),
+      active: true,
+    };
     db.query(
-      `INSERT INTO shlink (token, url, management_token, active, config_exp, config_pin, config_encrypted)
-      values (:token, :url, :managementToken, :active, :exp, :pin, :encrypted)`,
+      `INSERT INTO shlink (id, management_token, active, config_exp, config_pin)
+      values (:id, :managementToken, :active, :exp, :pin)`,
       {
-        token: link.token,
-        url: link.url,
+        id: link.id,
         managementToken: link.managementToken,
         active: link.active,
         exp: link.config.exp,
         pin: link.config.pin,
-        encrypted: link.config.encrypted,
       },
     );
+
+    return link;
   },
-  getManagedShl(linkId: string, managementToken: string): HealthLink {
+  getManagedShl(linkId: string, managementToken: string): types.HealthLink {
     const linkRow = db
-      .prepareQuery(`SELECT * from shlink where token=? and management_token=?`)
+      .prepareQuery(`SELECT * from shlink where id=? and management_token=?`)
       .oneEntry([linkId, managementToken]);
 
     return {
-      token: linkRow.token as string,
+      id: linkRow.id as string,
       active: Boolean(linkRow.active) as boolean,
-      url: linkRow.url as string,
       managementToken: linkRow.management_token as string,
       config: {
         exp: linkRow.config_exp as number,
-        encrypted: Boolean(linkRow.encrypted) as boolean,
         pin: linkRow.config_pin as string,
       },
     };
   },
-  getShlInternal(linkId: string): HealthLink {
-    const linkRow = db.prepareQuery(`SELECT * from shlink where token=?`).oneEntry([linkId]);
-
+  getShlInternal(linkId: string): types.HealthLink {
+    const linkRow = db.prepareQuery(`SELECT * from shlink where id=?`).oneEntry([linkId]);
     return {
-      token: linkRow.token as string,
+      id: linkRow.id as string,
       active: Boolean(linkRow.active) as boolean,
-      url: linkRow.url as string,
       managementToken: linkRow.management_token as string,
       config: {
         exp: linkRow.config_exp as number,
-        encrypted: Boolean(linkRow.encrypted) as boolean,
         pin: linkRow.config_pin as string,
       },
     };
   },
-  async addFile(linkId: string, file: HealthLinkFile): Promise<string> {
+  async addFile(linkId: string, file: types.HealthLinkFile): Promise<string> {
     const hash = await crypto.subtle.digest('SHA-256', file.content);
     const hashEncoded = base64url.encode(hash);
     db.query(`insert or ignore into cas_item(hash, content) values(:hashEncoded, :content)`, {
@@ -83,30 +83,21 @@ export const DbLinks = {
 
     return hashEncoded;
   },
-  addConnection(client: HealthLinkConnection) {
-    db.query(
-      `insert into shlink_client(id, active, shlink, registration_json) values (:clientId, :active, :shlink, :registration)`,
-      {
-        clientId: client.clientId,
-        active: client.active,
-        shlink: client.shlink,
-        registration: JSON.stringify(client.registration),
-      },
+  getManifestFiles(linkId: string) {
+    const files = db.queryEntries<{ content_type: string; content_hash: string }>(
+      `select content_type, content_hash from shlink_file where shlink=?`,
+      [linkId],
     );
-
-    clientConnectionListener(client);
+    return files.map((r) => ({
+      contentType: r.content_type as types.SHLinkManifestFile['contentType'],
+      hash: r.content_hash,
+    }));
   },
-  fileNames(linkId: string): string[] {
-    const files = db.queryEntries<{ content_hash: string }>(`select content_hash from shlink_file where shlink=?`, [
-      linkId,
-    ]);
-    return files.map((r) => r.content_hash);
-  },
-  getFile(linkId: string, contentHash: string): HealthLinkFile {
+  getFile(shlId: string, contentHash: string): types.HealthLinkFile {
     const fileRow = db.queryEntries<{ content_type: string; content: Uint8Array }>(
       `select content_type, content from shlink_file f join cas_item c on f.content_hash=c.hash
-      where f.shlink=:linkId and f.content_hash=:contentHash`,
-      { linkId, contentHash },
+      where f.shlink=:shlId and f.content_hash=:contentHash`,
+      { shlId, contentHash },
     );
 
     return {
@@ -114,46 +105,17 @@ export const DbLinks = {
       contentType: fileRow[0].content_type,
     };
   },
-  getClient(clientId: string) {
-    const q = db.prepareQuery(`select * from shlink_client where id=?`);
-    const clientRow = q.oneEntry([clientId]);
-    const clientConnection: HealthLinkConnection = {
-      shlink: clientRow.shlink as string,
-      clientId: clientRow.id as string,
-      active: clientRow.active as boolean,
-      registration: JSON.parse(clientRow.registration_json as string),
-      log: [],
-    };
-    return clientConnection;
+  recordAccess(shlId: string, recipient: string) {
+    const q = db.prepareQuery(`insert into  shlink_access(shlink, recipient) values (?, ?)`);
+    q.execute([shlId, recipient]);
+
+    clientConnectionListener({
+      shlId,
+      recipient,
+    });
   },
   recordPinFailure(shlId: string) {
-    const q = db.prepareQuery(`update shlink set pin_failures_remaining = pin_failures_remaining - 1 where token=?`);
+    const q = db.prepareQuery(`update shlink set pin_failures_remaining = pin_failures_remaining - 1 where id=?`);
     q.execute([shlId]);
   },
 };
-
-export const DbTokens = new Map<string, AccessToken>();
-
-export function createDbLink(config: HealthLinkConfig): HealthLink {
-  return {
-    config,
-    url: env.PUBLIC_URL,
-    token: randomStringWithEntropy(32),
-    managementToken: randomStringWithEntropy(32),
-    active: true,
-  };
-}
-
-export function lookupAuthzToken(authzToken: string, shlId: string) {
-  const entry = DbTokens.get(authzToken);
-  if (!entry || entry.exp < new Date().getTime() / 1000) {
-    console.log('No token or expired', entry, authzToken, DbTokens);
-    DbTokens.delete(authzToken);
-    return null;
-  }
-  const shl = DbLinks.getShlInternal(entry.shlink);
-  if (shl?.token !== shlId) {
-    return null;
-  }
-  return shl;
-}

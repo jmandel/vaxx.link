@@ -5,7 +5,7 @@
   <body>
     <h1>Retrieve Data for SMART Health Link</h1>
     <div id="inputDiv">
-      <input id="clientNameInput" value="Example SHL Client" /><br />
+      <input id="recipientNameInput" value="Example SHL Recipient" /><br />
       <input
         id="shlInput"
         autofocus
@@ -32,7 +32,7 @@
       const gsheetsInput = {
         state: "<?= state ?>",
         shl: "<?= shl ?>",
-        clientName: "<?= clientName ?>" || "Unknown Health Links Client",
+        recipientName: "<?= recipientName ?>" || "Unknown Health Links Recipient",
       };
 
       function poorCDS(vaccineCodes) {
@@ -66,15 +66,15 @@
         );
       }
 
-      const clientNameText = document.getElementById("clientNameInput");
-      clientNameText.value = gsheetsInput.clientName;
+      const recipientNameText = document.getElementById("recipientNameInput");
+      recipientNameText.value = gsheetsInput.recipientName;
 
       const shlText = document.getElementById("shlInput");
       if (gsheetsInput.shl) {
         shlText.value = gsheetsInput.shl;
         shlText.oninput();
       } else if (gsheetsInput.state) {
-        pullAndSummarize({ state: gsheetsInput.state });
+        retrieveAndSummarize({ state: gsheetsInput.state });
       }
 
       const pinText = document.getElementById("pinInput");
@@ -91,17 +91,16 @@
         } else {
           pinText.setAttribute("style", "width: 5rem; opacity: 20%");
         }
-        const connection = await shl.connect({
+        retrieveAndSummarize({
           shl: shlText.value,
           pin: pinText.value,
-          clientName: clientNameText.value,
+          recipientName: recipientNameText.value,
         });
-        pullAndSummarize(connection);
       }
 
-      async function pullAndSummarize(connection) {
-        const pulled = await shl.pull(connection);
-        const decoded = await Promise.all(pulled.shcs.map(verify));
+      async function retrieveAndSummarize(connection) {
+        const retrieved = await shl.retrieve(connection);
+        const decoded = await Promise.all(retrieved.shcs.map(verify));
         summarize(connection, decoded);
       }
 

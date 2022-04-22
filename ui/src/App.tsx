@@ -44,15 +44,13 @@ interface StoredSHC {
 interface SHLinkConfig {
   pin?: string;
   exp?: number;
-  encrypted: boolean;
 }
 
 interface SHLinkStatus {
   active: boolean;
-  url: string;
-  token: string;
+  id: string;
   managementToken: string;
-  connections: {
+  recipients: {
     name: string;
   }[];
 }
@@ -85,13 +83,10 @@ function b64urlencode(source: string | Uint8Array) {
 
 function generateLinkUrl(shl: SHLink) {
   const qrPayload = {
-    oauth: {
-      url: shl.serverStatus?.url,
-      token: shl.serverStatus?.token,
-    },
+    url: realServerBaseUrl + "/shl/" + shl.serverStatus!.id,
     exp: shl.serverConfig.exp,
-    flags: shl.serverConfig.pin ? 'P' : '',
-    decrypt: shl.encryptionKey ?? undefined,
+    flag: shl.serverConfig.pin ? 'P' : '',
+    decrypt: shl.encryptionKey
   };
 
   const qrJson = JSON.stringify(qrPayload);
@@ -114,7 +109,7 @@ interface DataServer {
   storeShc: (shl: SHLink, shc: StoredSHC) => Promise<SHLinkStatus>;
   createShl: (shl: SHLink['serverConfig']) => Promise<SHLinkStatus>;
   subscribeToShls: (
-    shls: Pick<SHLinkStatus, 'token' | 'managementToken'>[],
+    shls: {shlId: string, managementToken: string}[],
     reset?: () => void,
   ) => Promise<{ eventSource: EventSource; cleanup: () => void }>;
 }
@@ -127,15 +122,12 @@ const fakeServer: DataServer = {
     return Promise.resolve(config.serverStatus!);
   },
   createShl: async (shl) => {
-    let fakeAccessToken = new Uint8Array(32);
-    crypto.getRandomValues(fakeAccessToken);
 
     let serverStatus = {
-      url: 'https://fakeserver-with-a-long-url.example.org/oauth/v3/intenral-routing-path-segments/authorize',
-      token: b64urlencode(fakeAccessToken),
+      id: '' + Math.random(),
       managementToken: '' + Math.random(),
       active: true,
-      connections: [],
+      recipients: [],
     };
     fakeServerDb[serverStatus.managementToken] = {
       uploads: {},
@@ -161,10 +153,10 @@ const realServer: DataServer = {
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM', contentType: 'application/smart-health-card' })
         .encrypt(jose.base64url.decode(shl.encryptionKey))
     }
-    const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.token}/file`, {
+    const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.id}/file`, {
       method: 'POST',
       headers: {
-        'content-type': 'application/jose',
+        'content-type': 'application/smart-health-card',
         authorization: `Bearer ${shl.serverStatus?.managementToken}`,
       },
       body
@@ -247,12 +239,11 @@ class ServerStateSync {
   async createShl(datasetId: number, serverConfig: SHLinkConfig) {
     let serverStatus = await this.server.createShl(serverConfig);
     let newShlinkId = idGenerator();
-    let encryptionKey;
-    if (serverConfig.encrypted) {
-      const encryptionKeyBytes = new Uint8Array(32);
-      crypto.getRandomValues(encryptionKeyBytes);
-      encryptionKey = jose.base64url.encode(encryptionKeyBytes);
-    }
+
+    const encryptionKeyBytes = new Uint8Array(32);
+    crypto.getRandomValues(encryptionKeyBytes);
+    const encryptionKey = jose.base64url.encode(encryptionKeyBytes);
+
     this.dispatch({
       type: 'shl-add',
       datasetId,
@@ -371,7 +362,6 @@ export function SHLinkCreate() {
 
   async function activate() {
     await serverSyncer.createShl(datasetId, {
-      encrypted: true,
       pin: usePin ? pin : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
     });
@@ -471,7 +461,7 @@ export function SHLinks() {
                 </em>
               </li>
               <li>
-                <em>Access count: {shl.serverStatus?.connections?.length}</em>
+                <em>Access count: {shl.serverStatus?.recipients?.length}</em>
                 <br></br>
                 <button
                   onClick={() => {
@@ -482,7 +472,7 @@ export function SHLinks() {
                 </button>
                 {accessLogDisplay[shl.id] && (
                   <ul>
-                    {[...new Set(shl.serverStatus?.connections.map((c) => c.name))].map((name) => (
+                    {[...new Set(shl.serverStatus?.recipients.map((c) => c.name))].map((name) => (
                       <li key={name}>{name}</li>
                     ))}
                   </ul>
@@ -570,7 +560,7 @@ type AppAction =
     }
   | {
       type: 'shl-connection-add';
-      eventData: { shlink: string; registration: { name: string } };
+      eventData: { shlId: string; recipient: string };
     }
   | {
       type: 'shl-shc-sync';
@@ -603,16 +593,16 @@ function reducer(state: AppState, action: AppAction): AppState {
     });
   }
   if (action.type === 'shl-connection-add') {
-    const { shlink, registration } = action.eventData;
+    const { shlId, recipient } = action.eventData;
     const datasetId = Object.values(state.sharing).filter((ds) =>
-      Object.values(ds.shlinks).some((shl) => shl.serverStatus?.token === shlink),
+      Object.values(ds.shlinks).some((shl) => shl.serverStatus?.id === shlId),
     )[0].id;
     const shlinkId = Object.values(state.sharing[datasetId].shlinks).filter(
-      (shl) => shl.serverStatus?.token === shlink,
+      (shl) => shl.serverStatus?.id === shlId,
     )[0].id;
     return produce(state, (state) => {
       const serverStatus = state.sharing[datasetId].shlinks[shlinkId].serverStatus!;
-      serverStatus.connections = [...(serverStatus.connections ?? []), { name: registration.name }];
+      serverStatus.recipients = [...(serverStatus.recipients ?? []), { name: recipient }];
     });
   }
   if (action.type === 'shl-shc-sync') {
@@ -674,7 +664,7 @@ function App() {
 
   const shls = Object.values(store.sharing)
     .flatMap((ds) => Object.values(ds.shlinks))
-    .map((v) => ({ token: v.serverStatus?.token!, managementToken: v.serverStatus?.managementToken! }));
+    .map((v) => ({ shlId: v.serverStatus?.id!, managementToken: v.serverStatus?.managementToken! }));
 
   let [connectionCount, setConnectionCount] = useState(0);
   useDeepCompareEffect(() => {
@@ -683,7 +673,7 @@ function App() {
       const { eventSource, cleanup } = await server.subscribeToShls(shls, () => setConnectionCount(connectionCount+1));
       cleanupAsync = cleanup;
       eventSource.addEventListener('connection', (e) => {
-        const data = JSON.parse(e.data) as { shlink: string; registration: { name: string } };
+        const data = JSON.parse(e.data) as { shlId: string; recipient: string };
         dispatch({ type: 'shl-connection-add', eventData: data });
         console.log('ES message cxn', data);
       });
