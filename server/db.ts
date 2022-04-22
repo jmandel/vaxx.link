@@ -37,6 +37,11 @@ export const DbLinks = {
 
     return link;
   },
+  deactivate(shl: types.HealthLink) {
+    console.log("Deacrtivate", shl.id)
+    db.query(`UPDATE shlink set active=false where id=?`, [shl.id]);
+    return true;
+  },
   getManagedShl(linkId: string, managementToken: string): types.HealthLink {
     const linkRow = db
       .prepareQuery(`SELECT * from shlink where id=? and management_token=?`)

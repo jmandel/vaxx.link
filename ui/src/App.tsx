@@ -7,7 +7,7 @@ import produce from 'immer';
 import QRCode from 'qrcode';
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
-import * as  jose from 'jose';
+import * as jose from 'jose';
 
 import {
   NavLink,
@@ -83,10 +83,10 @@ function b64urlencode(source: string | Uint8Array) {
 
 function generateLinkUrl(shl: SHLink) {
   const qrPayload = {
-    url: realServerBaseUrl + "/shl/" + shl.serverStatus!.id,
+    url: realServerBaseUrl + '/shl/' + shl.serverStatus!.id,
     exp: shl.serverConfig.exp,
     flag: shl.serverConfig.pin ? 'P' : '',
-    decrypt: shl.encryptionKey
+    decrypt: shl.encryptionKey,
   };
 
   const qrJson = JSON.stringify(qrPayload);
@@ -107,9 +107,10 @@ interface DataSet {
 
 interface DataServer {
   storeShc: (shl: SHLink, shc: StoredSHC) => Promise<SHLinkStatus>;
-  createShl: (shl: SHLink['serverConfig']) => Promise<SHLinkStatus>;
+  createShl: (shl: SHLinkConfig) => Promise<SHLinkStatus>;
+  deactivateShl: (shl: SHLinkStatus) => Promise<boolean>;
   subscribeToShls: (
-    shls: {shlId: string, managementToken: string}[],
+    shls: { shlId: string; managementToken: string }[],
     reset?: () => void,
   ) => Promise<{ eventSource: EventSource; cleanup: () => void }>;
 }
@@ -121,8 +122,10 @@ const fakeServer: DataServer = {
     const config = fakeServerDb[shl.serverStatus!.managementToken];
     return Promise.resolve(config.serverStatus!);
   },
+  deactivateShl: async (shl) => {
+    return true;
+  },
   createShl: async (shl) => {
-
     let serverStatus = {
       id: '' + Math.random(),
       managementToken: '' + Math.random(),
@@ -147,11 +150,9 @@ const realServer: DataServer = {
   storeShc: async (shl, shc) => {
     let body = JSON.stringify({ verifiableCredential: [shc.jws] });
     if (shl.encryptionKey) {
-      body = await new jose.CompactEncrypt(
-        new TextEncoder().encode(body)
-      )
+      body = await new jose.CompactEncrypt(new TextEncoder().encode(body))
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM', contentType: 'application/smart-health-card' })
-        .encrypt(jose.base64url.decode(shl.encryptionKey))
+        .encrypt(jose.base64url.decode(shl.encryptionKey));
     }
     const result = await fetch(`${realServerBaseUrl}/shl/${shl.serverStatus?.id}/file`, {
       method: 'POST',
@@ -159,7 +160,7 @@ const realServer: DataServer = {
         'content-type': 'application/smart-health-card',
         authorization: `Bearer ${shl.serverStatus?.managementToken}`,
       },
-      body
+      body,
     });
     return result.json();
   },
@@ -169,6 +170,15 @@ const realServer: DataServer = {
       body: JSON.stringify(shl),
     });
     return result.json();
+  },
+  deactivateShl: async (shl) => {
+    let deletedResponse = await fetch(`${realServerBaseUrl}/shl/${shl.id}`, {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${shl.managementToken}`,
+      },
+    });
+    return JSON.parse(await deletedResponse.json()) as boolean;
   },
   subscribeToShls: async (shls, reset) => {
     console.log('new subscribe', shls);
@@ -250,7 +260,7 @@ class ServerStateSync {
       shlink: {
         id: newShlinkId,
         name: 'TODO remove names',
-        encryptionKey, 
+        encryptionKey,
         serverConfig,
         serverStatus,
         uploads: {},
@@ -263,8 +273,27 @@ class ServerStateSync {
     if (store.sharing !== this.previousStore?.sharing) {
       localStorage.setItem('shlinks', JSON.stringify(store.sharing));
     }
+
+    this.deactivateShlsIfNeeded(store);
     this.uploadFilesIfNeeded(store);
     this.previousStore = store;
+  }
+
+  async deactivateShlsIfNeeded(store: AppState) {
+    const shlIds = (store: AppState): SHLinkStatus[] =>
+      Object.values(store.sharing || {}).flatMap((ds) =>
+        Object.values(ds.shlinks || {}).map((shl) => shl.serverStatus!),
+      );
+
+    const previousShls: SHLinkStatus[] = shlIds(this.previousStore ?? {} as AppState);
+    const currentShls: SHLinkStatus[] = shlIds(store);
+
+    if (currentShls.length === previousShls.length) {
+      return;
+    }
+
+    const toDelete = previousShls.filter((shl) => !currentShls.some((currShl) => currShl!.id === shl!.id));
+    await Promise.all(toDelete.map((shl) => this.server.deactivateShl(shl)));
   }
 
   async uploadFilesIfNeeded(store: AppState) {
@@ -422,17 +451,17 @@ export function SHLinkDetail() {
 export function SHLinks() {
   let navigate = useNavigate();
   let { store, dispatch } = useStore();
-  let [qrDisplay, setQrDisplay] = useState({} as Record<string|number, boolean> | null);
+  let [qrDisplay, setQrDisplay] = useState({} as Record<string | number, boolean> | null);
   let [qrData, setQrData] = useState({} as Record<number, string> | null);
   let [accessLogDisplay, setAccessLogDisplay] = useState({} as Record<number, boolean>);
 
   let allLinks = Object.values(store.sharing)
     .flatMap((r) => Object.values(r.shlinks))
-    .map(l =>({id: l.id, link: generateLinkUrl(l)}));
+    .map((l) => ({ id: l.id, link: generateLinkUrl(l) }));
 
   useDeepCompareEffect(() => {
     Promise.all(
-      allLinks.map(async ({id, link}) => [id, await QRCode.toDataURL(link, { errorCorrectionLevel: 'high' })]),
+      allLinks.map(async ({ id, link }) => [id, await QRCode.toDataURL(link, { errorCorrectionLevel: 'high' })]),
     ).then((qrs) => {
       setQrData(Object.fromEntries(qrs));
     });
@@ -509,6 +538,8 @@ export function SHLinks() {
                 <br></br>
                 <button
                   onClick={() => {
+                    //FIXME
+
                     dispatch({ type: 'shl-remove', datasetId: ds.id, shlinkId: shl.id });
                   }}
                 >
@@ -597,9 +628,8 @@ function reducer(state: AppState, action: AppAction): AppState {
     const datasetId = Object.values(state.sharing).filter((ds) =>
       Object.values(ds.shlinks).some((shl) => shl.serverStatus?.id === shlId),
     )[0].id;
-    const shlinkId = Object.values(state.sharing[datasetId].shlinks).filter(
-      (shl) => shl.serverStatus?.id === shlId,
-    )[0].id;
+    const shlinkId = Object.values(state.sharing[datasetId].shlinks).filter((shl) => shl.serverStatus?.id === shlId)[0]
+      .id;
     return produce(state, (state) => {
       const serverStatus = state.sharing[datasetId].shlinks[shlinkId].serverStatus!;
       serverStatus.recipients = [...(serverStatus.recipients ?? []), { name: recipient }];
@@ -670,7 +700,9 @@ function App() {
   useDeepCompareEffect(() => {
     let cleanupAsync: () => void;
     (async function () {
-      const { eventSource, cleanup } = await server.subscribeToShls(shls, () => setConnectionCount(connectionCount+1));
+      const { eventSource, cleanup } = await server.subscribeToShls(shls, () =>
+        setConnectionCount(connectionCount + 1),
+      );
       cleanupAsync = cleanup;
       eventSource.addEventListener('connection', (e) => {
         const data = JSON.parse(e.data) as { shlId: string; recipient: string };

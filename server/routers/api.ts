@@ -54,10 +54,10 @@ export const shlApiRouter = new oak.Router()
     const ticket = randomStringWithEntropy(32);
     fileTickets.set(ticket, {
       shlId: shl.id,
-    })
+    });
     setTimeout(() => {
       fileTickets.delete(ticket);
-    }, 60000)
+    }, 60000);
     db.DbLinks.recordAccess(shl.id, config.recipient);
 
     context.response.body = {
@@ -66,7 +66,6 @@ export const shlApiRouter = new oak.Router()
         location: `${env.PUBLIC_URL}/api/shl/${shl.id}/file/${f.hash}?ticket=${ticket}`,
       })),
     };
-
   })
   .get('/shl/:shlId/file/:fileIndex', (context) => {
     const fileTicket = fileTickets.get(context.request.url.searchParams.get('ticket')!);
@@ -81,7 +80,7 @@ export const shlApiRouter = new oak.Router()
     }
 
     const file = db.DbLinks.getFile(context.params.shlId, context.params.fileIndex);
-    context.response.headers.set('content-type', "application/jose");
+    context.response.headers.set('content-type', 'application/jose');
     context.response.body = file.content;
   })
   .post('/shl/:shlId/file', async (context) => {
@@ -104,10 +103,18 @@ export const shlApiRouter = new oak.Router()
       added,
     };
   })
+  .delete('/shl/:shlId', async (context) => {
+    const managementToken = await context.request.headers.get('authorization')?.split(/bearer /i)[1]!;
+    const shl = db.DbLinks.getManagedShl(context.params.shlId, managementToken)!;
+    if (!shl) {
+      throw new Error(`Can't manage SHLink ` + context.params.shlId);
+    }
+    const deactivated = db.DbLinks.deactivate(shl);
+    context.response.body = deactivated;
+  })
   .post('/subscribe', async (context) => {
     const shlSet: { shlId: string; managementToken: string }[] = await context.request.body({ type: 'json' }).value;
     const managedLinks = shlSet.map((req) => db.DbLinks.getManagedShl(req.shlId, req.managementToken));
-
 
     const ticket = randomStringWithEntropy(32, 'subscription-ticket-');
     subscriptionTickets.set(
