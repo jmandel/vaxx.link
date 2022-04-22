@@ -81,7 +81,7 @@
       const result = document.getElementById("result");
 
       async function processInput() {
-        const needPin = await shl.needPin({ shl: shlText.value });
+        const needPin = await shl.flag({ shl: shlText.value }).includes("P");
         if (needPin) {
           pinText.setAttribute("style", "width: 5rem; opacity: 100%;");
           if (pinText.value === "") {
@@ -101,19 +101,19 @@
       async function retrieveAndSummarize(connection) {
         const retrieved = await shl.retrieve(connection);
         const decoded = await Promise.all(retrieved.shcs.map(verify));
-        summarize(connection, decoded);
+        summarize(retrieved, decoded);
       }
 
-      async function summarize(connection, decoded) {
-        const pt = decoded[0].fhirbundle.entry[0].resource;
+      async function summarize(retrieved, decoded) {
+        const pt = decoded[0].fhirBundle.entry[0].resource;
         const ptName = `${pt.name[0].given[0]} ${pt.name[0].family} (${pt.birthDate})`;
         const allCvx = decoded
-          .flatMap((d) => d.fhirbundle.entry)
+          .flatMap((d) => d.fhirBundle.entry)
           .map((e) => e?.resource?.vaccineCode?.coding?.[0]?.code)
           .filter((c) => !!c);
         const doseCounts = poorCDS(allCvx);
         window.returnResults = () => {
-          google.script.run.returnStateLink(connection.state, doseCounts);
+          google.script.run.returnStateLink(retrieved.state, doseCounts);
           google.script.host.close();
         };
         result.innerHTML = `
