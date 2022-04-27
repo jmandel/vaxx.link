@@ -32,7 +32,7 @@
       const gsheetsInput = {
         state: "<?= state ?>",
         shl: "<?= shl ?>",
-        recipientName: "<?= recipientName ?>" || "Unknown Health Links Recipient",
+        recipient: "<?= recipientName ?>",
       };
 
       function poorCDS(vaccineCodes) {
@@ -67,7 +67,7 @@
       }
 
       const recipientNameText = document.getElementById("recipientNameInput");
-      recipientNameText.value = gsheetsInput.recipientName;
+      recipientNameText.value = gsheetsInput.recipient;
 
       const shlText = document.getElementById("shlInput");
       if (gsheetsInput.shl) {
@@ -94,7 +94,7 @@
         retrieveAndSummarize({
           shl: shlText.value,
           pin: pinText.value,
-          recipientName: recipientNameText.value,
+          recipient: recipientNameText.value || "Madison School",
         });
       }
 
