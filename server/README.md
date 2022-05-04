@@ -12,7 +12,7 @@ deno run --allow-env="PORT" --allow-read=".","./db" --allow-write="./db" --allow
 # Test
 
 ```sh
-deno test --allow-env="PORT" --allow-read=".","./db" --allow-write="./db" --allow-net
+deno test --allow-env --allow-read=".","./db" --allow-write="./db" --allow-net
 ```
 
 # Build in Docker

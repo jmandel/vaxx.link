@@ -115,3 +115,94 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
 });
+
+Deno.test({
+  ignore: !Deno.env.get("TEST_SMART"),
+  name: 'App supports SMART API Endpoints with Refresh',
+  async fn(t) {
+    const decrypt = randomStringWithEntropy(32);
+    const key = jose.base64url.decode(decrypt);
+
+    let shl: types.HealthLink;
+    await t.step('Create a SHL', async function () {
+      const shlResponse = await fetch(`${env.PUBLIC_URL}/api/shl`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          pin: '1234',
+        }),
+      });
+
+      assertions.assertEquals(shlResponse.status, 200);
+      shl = (await shlResponse.json()) as types.HealthLink;
+    });
+
+    const accessConfig =  JSON.parse(await Deno.readTextFile("tests/smart-api-config.json"));
+
+    const tokenResponse = { ...accessConfig.tokenResponse, referesh_token: undefined };
+    const endpoint: types.HealthLinkEndpoint = {
+      config: {
+        clientId: accessConfig.clientId,
+        clientSecret: accessConfig.clientSecret,
+        key: decrypt,
+        refreshToken: accessConfig.tokenResponse.refresh_token,
+        tokenEndpoint: accessConfig.tokenUri,
+      },
+      endpointUrl: accessConfig.serverUrl.replace(/\/$/, ''),
+      accessTokenResponse: tokenResponse,
+    };
+
+    await t.step('Add endpoint to SHL', async function () {
+      const shlFileResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}/endpoint`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${shl.managementToken}`,
+        },
+        body: JSON.stringify(endpoint),
+      });
+
+      assertions.assertEquals(shlFileResponse.status, 200);
+      console.log;
+    });
+
+    let manifestJson: types.SHLinkManifest;
+
+    await t.step('Obtain manifest from SHL server', async function () {
+      const manifestResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          pin: '1234',
+          recipient: 'Test SHL Client',
+        }),
+      });
+
+      assertions.assertEquals(manifestResponse.status, 200);
+      manifestJson = await manifestResponse.json();
+
+      console.log('Manifest response');
+      console.log(JSON.stringify(manifestJson, null, 2));
+      assertions.assert(manifestJson.files.length === 1, 'Expected one endpoint in manifest');
+    });
+
+    async function fetchEndpoint(){
+      assertions.assert(manifestJson.files[0].contentType === 'application/smart-api-access');
+      const fileResponse = await fetch(manifestJson.files[0].location);
+      const file = await fileResponse.text();
+
+      const decrypted = await jose.compactDecrypt(file, key);
+      const decoded = JSON.parse(new TextDecoder().decode(decrypted.plaintext));
+      assertions.assertExists(decoded.access_token)
+    }
+
+    await t.step('Download SHC endpoint once', fetchEndpoint );
+    await t.step('Download SHC endpoint again', fetchEndpoint );
+  },
+  sanitizeOps: false,
+  sanitizeResources: false,
+});

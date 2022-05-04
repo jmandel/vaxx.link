@@ -19,6 +19,20 @@ CREATE TABLE IF NOT EXISTS shlink_file(
   content_hash TEXT REFERENCES cas_item(hash)
 );
 
+CREATE TABLE IF NOT EXISTS shlink_endpoint(
+  id VARCHAR(43) PRIMARY KEY UNIQUE,
+  shlink VARCHAR(43) REFERENCES shlink(id),
+  endpoint_url TEXT NOT NULL,
+  config_key VARCHAR(43) NOT NULL,
+  config_client_id TEXT NOT NULL,
+  config_client_secret TEXT,
+  config_token_endpoint TEXT NOT NULL,
+  config_refresh_token TEXT NOT NULL,
+  refresh_time TEXT NOT NULL DEFAULT(DATETIME('now', '+5 minutes')),
+  access_token_response TEXT NOT NULL
+);
+
+
 CREATE TABLE IF NOT EXISTS shlink_access(
   shlink VARCHAR(43) REFERENCES shlink(id),
   recipient TEXT NOT NULL,

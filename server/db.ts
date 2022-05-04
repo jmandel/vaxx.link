@@ -1,4 +1,4 @@
-import { base64url, sqlite } from './deps.ts';
+import { base64url, queryString, sqlite } from './deps.ts';
 import { clientConnectionListener } from './routers/api.ts';
 import * as types from './types.ts';
 import { randomStringWithEntropy } from './util.ts';
@@ -14,6 +14,27 @@ schema.split(/\n\n/).forEach((q) => {
     if (!q.match('ok_to_fail')) throw e;
   }
 });
+
+async function updateAccessToken(endpoint: types.HealthLinkEndpoint) {
+  const accessTokenRequest = await fetch(endpoint.config.tokenEndpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: `Basic ${btoa(`${endpoint.config.clientId}:${endpoint.config.clientSecret}`)}`,
+    },
+    body: queryString.stringify({ grant_type: 'refresh_token', refresh_token: endpoint.config.refreshToken }),
+  });
+  const accessTokenResponse = await accessTokenRequest.json();
+
+
+  endpoint.accessTokenResponse = accessTokenResponse;
+  if (endpoint?.accessTokenResponse?.refresh_token) {
+    endpoint.config.refreshToken = endpoint.accessTokenResponse.refresh_token;
+    delete endpoint.accessTokenResponse.refresh_token;
+  }
+  const TOKEN_LIFETIME_SECONDS = 300;
+  endpoint.refreshTime = new Date(new Date().getTime() + TOKEN_LIFETIME_SECONDS * 1000).toISOString();
+}
 
 export const DbLinks = {
   create(config: types.HealthLinkConfig) {
@@ -38,7 +59,6 @@ export const DbLinks = {
     return link;
   },
   deactivate(shl: types.HealthLink) {
-    console.log("Deacrtivate", shl.id)
     db.query(`UPDATE shlink set active=false where id=?`, [shl.id]);
     return true;
   },
@@ -90,6 +110,43 @@ export const DbLinks = {
 
     return hashEncoded;
   },
+  async addEndpoint(linkId: string, endpoint: types.HealthLinkEndpoint): Promise<string> {
+    const id = await randomStringWithEntropy(32);
+
+    await updateAccessToken(endpoint);
+    db.query(
+      `insert into shlink_endpoint(
+          id, shlink, endpoint_url,
+          config_key, config_client_id, config_client_secret, config_token_endpoint, config_refresh_token, refresh_time,
+          access_token_response)
+        values (
+          :id, :linkId, :endpointUrl, :key, :clientId, :clientSecret, :tokenEndpoint, :refreshToken, :refreshTime, :accessTokenResponse
+        )`,
+      {
+        id,
+        linkId,
+        endpointUrl: endpoint.endpointUrl,
+        key: endpoint.config.key,
+        clientId: endpoint.config.clientId,
+        clientSecret: endpoint.config.clientSecret,
+        tokenEndpoint: endpoint.config.tokenEndpoint,
+        refreshTime: endpoint.refreshTime,
+        refreshToken: endpoint.config.refreshToken,
+        accessTokenResponse: JSON.stringify(endpoint.accessTokenResponse),
+      },
+    );
+
+    return id;
+  },
+  async saveEndpoint(endpoint: types.HealthLinkEndpoint): Promise<boolean> {
+    db.query(`update shlink_endpoint set config_refresh_token=?, refresh_time=?, access_token_response=? where id=?`, [
+      endpoint.config.refreshToken,
+      endpoint.refreshTime,
+      JSON.stringify(endpoint.accessTokenResponse),
+      endpoint.id,
+    ]);
+    return await true;
+  },
   getManifestFiles(linkId: string) {
     const files = db.queryEntries<{ content_type: string; content_hash: string }>(
       `select content_type, content_hash from shlink_file where shlink=?`,
@@ -100,6 +157,59 @@ export const DbLinks = {
       hash: r.content_hash,
     }));
   },
+  getManifestEndpoints(linkId: string) {
+    const endpoints = db.queryEntries<{ id: string }>(`select id from shlink_endpoint where shlink=?`, [linkId]);
+    return endpoints.map((e) => ({
+      contentType: 'application/smart-api-access',
+      id: e.id,
+    }));
+  },
+  async getEndpoint(linkId: string, endpointId: string): Promise<types.HealthLinkEndpoint> {
+    const endpointRow = db
+      .prepareQuery<
+        Array<unknown>,
+        {
+          id: string;
+          endpoint_url: string;
+          config_key: string;
+          config_client_id: string;
+          config_client_secret: string;
+          config_token_endpoint: string;
+          config_refresh_token: string;
+          refresh_time: string;
+          access_token_response: string;
+        }
+      >(
+        `select
+        id, endpoint_url,
+        config_key, config_client_id, config_client_secret, config_token_endpoint, config_refresh_token,
+        refresh_time, access_token_response
+      from shlink_endpoint where shlink=? and id=?`,
+      )
+      .oneEntry([linkId, endpointId]);
+
+    const endpoint: types.HealthLinkEndpoint = {
+      id: endpointRow.id,
+      endpointUrl: endpointRow.endpoint_url,
+      config: {
+        key: endpointRow.config_key,
+        clientId: endpointRow.config_client_id,
+        clientSecret: endpointRow.config_client_secret,
+        refreshToken: endpointRow.config_refresh_token,
+        tokenEndpoint: endpointRow.config_token_endpoint,
+      },
+      refreshTime: endpointRow.refresh_time,
+      accessTokenResponse: JSON.parse(endpointRow.access_token_response),
+    };
+
+    if (new Date(endpoint.refreshTime!).getTime() < new Date().getTime()) {
+      await updateAccessToken(endpoint);
+      await DbLinks.saveEndpoint(endpoint);
+    }
+
+    return endpoint;
+  },
+
   getFile(shlId: string, contentHash: string): types.HealthLinkFile {
     const fileRow = db.queryEntries<{ content_type: string; content: Uint8Array }>(
       `select content_type, content from shlink_file f join cas_item c on f.content_hash=c.hash
