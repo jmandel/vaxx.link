@@ -113,8 +113,10 @@
           .filter((c) => !!c);
         const doseCounts = poorCDS(allCvx);
         window.returnResults = () => {
-          google.script.run.returnStateLink(retrieved.state, doseCounts);
-          google.script.host.close();
+          google.script.run
+          .withSuccessHandler(google.script.host.close)
+          .returnStateLink(retrieved.state, doseCounts);
+          
         };
         result.innerHTML = `
         <div>
