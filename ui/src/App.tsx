@@ -359,7 +359,7 @@ const defaultDatasets: DataSet[] = [
     name: 'School Vaccines',
     shcTypes: ['#immunization'],
     shlinks: {},
-  },
+  }
 ];
 
 const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
@@ -374,6 +374,104 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
     };
   }),
 );
+
+export function SHLinkCreateCustom() {
+  let navigate = useNavigate();
+  let { store } = useStore();
+  let [usePin, setUsePin]= useState(false);
+  let [pin, setPin] = useState('1234');
+  let [expires, setExpires] = useState(false);
+  // list of checked vaccinations to include in the created SHLink
+  const [checkedVaccinations, setCheckedVaccinations] = useState<StoredSHC[]>([]);
+  
+  // display all vaccines 
+  let vaccines = Object.values(store.vaccines);
+  // state for keeping track of checked/unchecked vaccines
+  const [isChecked, setIsChecked] = useState(new Array(vaccines.length).fill(false));
+
+  let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
+  let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
+
+  const handleOnChange = (index: Number) => {
+    const updatedCheck = isChecked.map((item: boolean, i: Number) => {
+      return i === index ? !item : item
+    });
+
+    setIsChecked(updatedCheck);
+
+    // update checked vaccinations to feed into new DataSet
+    const updatedCheckedVaccinations: StoredSHC[] = [];
+    isChecked.forEach((item, i) => {
+      if (item === true) {
+        updatedCheckedVaccinations.push(vaccines[i]);
+      }
+    });
+
+    setCheckedVaccinations(updatedCheckedVaccinations);
+
+    
+  }
+
+  async function activate() {
+    // create new dataset using the checked vaccinations
+    const customDataSet : DataSet = {
+      id: idGenerator(),
+      name: `Custom DataSet`,
+      shlinks: {}
+    };
+    await serverSyncer.createShl(customDataSet.id, {
+      pin: usePin ? pin : undefined,
+      exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
+    });
+    navigate(`/health-links`, { replace: true });
+  }
+
+  return (
+    <>
+      {' '}
+      <h3>New SMART Health Link: Custom Dataset</h3>{' '}
+      <input
+        type="checkbox"
+        checked={usePin}
+        onChange={() => {
+          setUsePin(!usePin);
+        }}
+      />{' '}
+      Use PIN {usePin ? <input type="text" value={pin} onChange={(e) => setPin(e.target.value)} /> : ''} <br></br>
+      <input
+        type="checkbox"
+        checked={expires}
+        onChange={() => {
+          setExpires(!expires);
+        }}
+      />{' '}
+      Link expires?{' '}
+      {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
+      <h4>Records to Share</h4>
+      <ol>
+        {vaccines.map((v, i) => {
+          let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
+          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
+          let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
+          return (
+            <li key={i} style={{ fontFamily: 'monospace' }}>
+              <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
+                <label>
+                {' '}  
+               {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+               {drug.slice(0, 23)}
+               {drug.length > 20 ? '...' : ''} at {location}
+                </label>        
+            </li>
+          );
+        })}
+        </ol>
+      <button onClick={activate}>Activate new sharing link</button>
+    </>
+  );
+
+
+}
 
 export function SHLinkCreate() {
   let navigate = useNavigate();
@@ -401,6 +499,7 @@ export function SHLinkCreate() {
   return (
     <>
       {' '}
+      {console.log(store.sharing)}
       <h3>New SMART Health Link: {store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
@@ -550,10 +649,9 @@ export function SHLinks() {
           ))}
         </React.Fragment>
       ))}
-
       <h4>
         Custom Data Set
-        <button>Create new link</button>
+        <button onClick={() => navigate('/health-links/new-custom')}>Create new link</button>
       </h4>
     </div>
   );
