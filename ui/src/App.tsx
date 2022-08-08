@@ -102,6 +102,7 @@ interface DataSet {
   id: number;
   name: string;
   shcTypes?: string[];
+  shcs?: number[];
   shlinks: Record<number, SHLink>;
 }
 
@@ -230,6 +231,13 @@ function filterForTypes(shcTypes?: string[]) {
   return (shc: StoredSHC) => !!shc?.payload?.vc?.type.some((t) => targetTypes.includes(t));
 }
 
+function filterForIds(shcIds? : number[]) {
+  if (!shcIds) {
+    return () => true;
+  }
+  return (shc: StoredSHC) => shcIds?.includes(shc.id);
+}
+
 let idGenerator = () => Math.random();
 class ServerStateSync {
   dispatch: React.Dispatch<AppAction>;
@@ -306,7 +314,7 @@ class ServerStateSync {
     }[] = [];
 
     for (const ds of Object.values(store.sharing)) {
-      const cardsForDs = allCards.filter(filterForTypes(ds.shcTypes));
+      const cardsForDs = allCards.filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs));
       for (const shl of Object.values(ds.shlinks)) {
         const cardsForShl = Object.keys(shl.uploads).map(Number);
         const needAdditions = cardsForDs.filter((c) => !cardsForShl.includes(c.id)).map((a) => a.id);
@@ -377,17 +385,17 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
 
 export function SHLinkCreateCustom() {
   let navigate = useNavigate();
-  let { store } = useStore();
+  let { store, dispatch } = useStore();
+  // display all vaccines 
+  let allVaccineCards = Object.values(store.vaccines);
   let [usePin, setUsePin]= useState(false);
   let [pin, setPin] = useState('1234');
   let [expires, setExpires] = useState(false);
   // list of checked vaccinations to include in the created SHLink
-  const [checkedVaccinations, setCheckedVaccinations] = useState<StoredSHC[]>([]);
-  
-  // display all vaccines 
-  let vaccines = Object.values(store.vaccines);
+  const [checkedVaccinations, setCheckedVaccinations] = useState<number[]>([]);
   // state for keeping track of checked/unchecked vaccines
-  const [isChecked, setIsChecked] = useState(new Array(vaccines.length).fill(false));
+  const defaultArray = new Array(allVaccineCards.length).fill(false)
+  const [isChecked, setIsChecked] = useState<Array<boolean>>(defaultArray);
 
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
@@ -397,28 +405,27 @@ export function SHLinkCreateCustom() {
       return i === index ? !item : item
     });
 
-    setIsChecked(updatedCheck);
-
     // update checked vaccinations to feed into new DataSet
-    const updatedCheckedVaccinations: StoredSHC[] = [];
-    isChecked.forEach((item, i) => {
+    const updatedCheckedVaccinations: number[] = [];
+    updatedCheck.forEach((item, i) => {
       if (item === true) {
-        updatedCheckedVaccinations.push(vaccines[i]);
+        updatedCheckedVaccinations.push(allVaccineCards[i].id);
       }
     });
-
-    setCheckedVaccinations(updatedCheckedVaccinations);
-
-    
+    setIsChecked(updatedCheck);
+    setCheckedVaccinations(updatedCheckedVaccinations); 
   }
 
   async function activate() {
     // create new dataset using the checked vaccinations
+    const dsId = idGenerator();
     const customDataSet : DataSet = {
-      id: idGenerator(),
-      name: `Custom DataSet`,
+      id: dsId,
+      name: `Custom DataSet ${dsId}`,
+      shcs: checkedVaccinations,
       shlinks: {}
     };
+    dispatch({ type: 'dataset-add', ds: customDataSet });
     await serverSyncer.createShl(customDataSet.id, {
       pin: usePin ? pin : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
@@ -429,7 +436,7 @@ export function SHLinkCreateCustom() {
   return (
     <>
       {' '}
-      <h3>New SMART Health Link: Custom Dataset</h3>{' '}
+      <h3>New SMART Health Link: New Custom Dataset</h3>{' '}
       <input
         type="checkbox"
         checked={usePin}
@@ -449,7 +456,7 @@ export function SHLinkCreateCustom() {
       {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
       <h4>Records to Share</h4>
       <ol>
-        {vaccines.map((v, i) => {
+        {allVaccineCards.map((v, i) => {
           let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
           let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
           let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
@@ -485,7 +492,7 @@ export function SHLinkCreate() {
   let [searchParams] = useSearchParams();
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
-  let vaccines = Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes));
+  let vaccines = Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs));
 
   async function activate() {
     await serverSyncer.createShl(datasetId, {
@@ -499,7 +506,6 @@ export function SHLinkCreate() {
   return (
     <>
       {' '}
-      {console.log(store.sharing)}
       <h3>New SMART Health Link: {store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
@@ -650,7 +656,7 @@ export function SHLinks() {
         </React.Fragment>
       ))}
       <h4>
-        Custom Data Set
+        New Custom Data Set
         <button onClick={() => navigate('/health-links/new-custom')}>Create new link</button>
       </h4>
     </div>
@@ -671,6 +677,10 @@ type AppAction =
       type: 'vaccine-delete';
       vaccine: StoredSHC;
     }
+  | {
+    type: 'dataset-add';
+    ds: DataSet;
+  }
   | {
       type: 'shl-add';
       datasetId: number;
@@ -701,6 +711,11 @@ type AppAction =
     };
 
 function reducer(state: AppState, action: AppAction): AppState {
+  if (action.type === 'dataset-add') {
+    return produce(state, (state) => {
+      state.sharing[action.ds.id] = action.ds;
+    });
+  }
   if (action.type === 'vaccine-add') {
     return produce(state, (state) => {
       state.vaccines[action.vaccine.id] = action.vaccine;
