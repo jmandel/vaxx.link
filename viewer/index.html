@@ -13,7 +13,7 @@
         onpaste="setTimeout(processInput)"
         oninput="processInput()"
       />
-      <input class="hidden" id="pinInput" placeholder="Enter PIN" style="width: 5rem; opacity: 20%" />
+      <input class="hidden" id="passcodeInput" placeholder="Enter Passcode" style="width: 5rem; opacity: 20%" />
       <br />
       <button onClick="processInput()">Retrieve SMART Health Link Data</button>
       <br />
@@ -28,7 +28,7 @@
 
       const recipientNameText = document.getElementById('recipientNameInput');
       const shlText = document.getElementById('shlInput');
-      const pinText = document.getElementById('pinInput');
+      const passcodeText = document.getElementById('passcodeInput');
       const result = document.getElementById('result');
 
       const linkInUrl = window.location.hash.match(/shlink:\/.*/);
@@ -38,20 +38,20 @@
       }
 
       async function processInput() {
-        const needPin = shl.flag({ shl: shlText.value }).includes('P');
-        if (needPin) {
-          pinText.setAttribute('style', 'width: 5rem; opacity: 100%;');
-          if (pinText.value === '') {
-            pinText.focus();
+        const needPasscode = shl.flag({ shl: shlText.value }).includes('P');
+        if (needPasscode) {
+          passcodeText.setAttribute('style', 'width: 5rem; opacity: 100%;');
+          if (passcodeText.value === '') {
+            passcodeText.focus();
             return;
           }
         } else {
-          pinText.setAttribute('style', 'width: 5rem; opacity: 20%');
+          passcodeText.setAttribute('style', 'width: 5rem; opacity: 20%');
         }
-        console.log('Retrieve', shlText.value, pinText.value);
+        console.log('Retrieve', shlText.value, passcodeText.value);
         const retrieved = await shl.retrieve({
           shl: shlText.value,
-          pin: pinText.value,
+          passcode: passcodeText.value,
           recipient: recipientNameText.value,
         });
         console.log('Retrieved', retrieved);
