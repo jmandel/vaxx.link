@@ -45,14 +45,14 @@ export const DbLinks = {
       active: true,
     };
     db.query(
-      `INSERT INTO shlink (id, management_token, active, config_exp, config_pin)
-      values (:id, :managementToken, :active, :exp, :pin)`,
+      `INSERT INTO shlink (id, management_token, active, config_exp, config_passcode)
+      values (:id, :managementToken, :active, :exp, :passcode)`,
       {
         id: link.id,
         managementToken: link.managementToken,
         active: link.active,
         exp: link.config.exp,
-        pin: link.config.pin,
+        passcode: link.config.passcode,
       },
     );
 
@@ -69,12 +69,12 @@ export const DbLinks = {
 
     return {
       id: linkRow.id as string,
-      pinFailuresRemaining: linkRow.pin_failures_remaining as number,
+      passcodeFailuresRemaining: linkRow.passcode_failures_remaining as number,
       active: Boolean(linkRow.active) as boolean,
       managementToken: linkRow.management_token as string,
       config: {
         exp: linkRow.config_exp as number,
-        pin: linkRow.config_pin as string,
+        passcode: linkRow.config_passcode as string,
       },
     };
   },
@@ -82,12 +82,12 @@ export const DbLinks = {
     const linkRow = db.prepareQuery(`SELECT * from shlink where id=?`).oneEntry([linkId]);
     return {
       id: linkRow.id as string,
-      pinFailuresRemaining: linkRow.pin_failures_remaining as number,
+      passcodeFailuresRemaining: linkRow.passcode_failures_remaining as number,
       active: Boolean(linkRow.active) as boolean,
       managementToken: linkRow.management_token as string,
       config: {
         exp: linkRow.config_exp as number,
-        pin: linkRow.config_pin as string,
+        passcode: linkRow.config_passcode as string,
       },
     };
   },
@@ -231,8 +231,8 @@ export const DbLinks = {
       recipient,
     });
   },
-  recordPinFailure(shlId: string) {
-    const q = db.prepareQuery(`update shlink set pin_failures_remaining = pin_failures_remaining - 1 where id=?`);
+  recordPasscodeFailure(shlId: string) {
+    const q = db.prepareQuery(`update shlink set passcode_failures_remaining = passcode_failures_remaining - 1 where id=?`);
     q.execute([shlId]);
   },
 };

@@ -46,10 +46,10 @@ export const shlApiRouter = new oak.Router()
       throw 'Cannot resolve manifest; SHL is not active';
     }
 
-    if (shl.config.pin && shl.config.pin !== config.pin) {
-      db.DbLinks.recordPinFailure(shl.id);
+    if (shl.config.passcode && shl.config.passcode !== config.passcode) {
+      db.DbLinks.recordPasscodeFailure(shl.id);
       context.response.status = 401;
-      context.response.body = { remainingAttempts: shl.pinFailuresRemaining - 1 };
+      context.response.body = { remainingAttempts: shl.passcodeFailuresRemaining - 1 };
       return;
     }
 

@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS cas_item(
 
 CREATE TABLE IF NOT EXISTS shlink(
   id VARCHAR(43) PRIMARY KEY UNIQUE,
-  pin_failures_remaining INTEGER DEFAULT(5),
-  config_pin TEXT,
+  passcode_failures_remaining INTEGER DEFAULT(5),
+  config_passcode TEXT,
   config_exp DATETIME,
   active BOOLEAN NOT NULL DEFAULT(true),
   management_token VARCHAR(43) NOT NULL
@@ -53,9 +53,9 @@ CREATE TRIGGER IF NOT EXISTS insert_link_to_cas
         update cas_item set ref_count=ref_count+1 where hash=NEW.content_hash;
     END;
 
-create trigger if not exists disable_shlink_on_pin_failure
+create trigger if not exists disable_shlink_on_passcode_failure
   after update on shlink
   for each row
     begin
-        update shlink set active=false where new.pin_failures_remaining <= 0;
+        update shlink set active=false where new.passcode_failures_remaining <= 0;
     end;

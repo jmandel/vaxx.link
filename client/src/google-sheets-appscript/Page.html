@@ -14,8 +14,8 @@
       />
       <input
         class="hidden"
-        id="pinInput"
-        placeholder="Enter PIN"
+        id="passcodeInput"
+        placeholder="Enter Passcode"
         style="width: 5rem; opacity: 20%"
       />
       <br />
@@ -77,23 +77,23 @@
         retrieveAndSummarize({ state: gsheetsInput.state });
       }
 
-      const pinText = document.getElementById("pinInput");
+      const passcodeText = document.getElementById("passcodeInput");
       const result = document.getElementById("result");
 
       async function processInput() {
-        const needPin = await shl.flag({ shl: shlText.value }).includes("P");
-        if (needPin) {
-          pinText.setAttribute("style", "width: 5rem; opacity: 100%;");
-          if (pinText.value === "") {
-            pinText.focus();
+        const needPasscode = await shl.flag({ shl: shlText.value }).includes("P");
+        if (needPasscode) {
+          passcodeText.setAttribute("style", "width: 5rem; opacity: 100%;");
+          if (passcodeText.value === "") {
+            passcodeText.focus();
             return;
           }
         } else {
-          pinText.setAttribute("style", "width: 5rem; opacity: 20%");
+          passcodeText.setAttribute("style", "width: 5rem; opacity: 20%");
         }
         retrieveAndSummarize({
           shl: shlText.value,
-          pin: pinText.value,
+          passcode: passcodeText.value,
           recipient: recipientNameText.value || "Madison School",
         });
       }

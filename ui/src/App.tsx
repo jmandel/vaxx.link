@@ -42,7 +42,7 @@ interface StoredSHC {
 }
 
 interface SHLinkConfig {
-  pin?: string;
+  passcode?: string;
   exp?: number;
 }
 
@@ -85,7 +85,7 @@ function generateLinkUrl(shl: SHLink) {
   const qrPayload = {
     url: realServerBaseUrl + '/shl/' + shl.serverStatus!.id,
     exp: shl.serverConfig.exp,
-    flag: shl.serverConfig.pin ? 'P' : '',
+    flag: shl.serverConfig.passcode ? 'P' : '',
     decrypt: shl.encryptionKey,
   };
 
@@ -378,8 +378,8 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
 export function SHLinkCreate() {
   let navigate = useNavigate();
   let { store } = useStore();
-  let [usePin, setUsePin] = useState(false);
-  let [pin, setPin] = useState('1234');
+  let [usePasscode, setUsePasscode] = useState(false);
+  let [passcode, setPasscode] = useState('1234');
   let [expires, setExpires] = useState(false);
 
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
@@ -391,7 +391,7 @@ export function SHLinkCreate() {
 
   async function activate() {
     await serverSyncer.createShl(datasetId, {
-      pin: usePin ? pin : undefined,
+      passcode: usePasscode ? passcode : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
     });
     navigate(`/health-links`, { replace: true });
@@ -404,12 +404,12 @@ export function SHLinkCreate() {
       <h3>New SMART Health Link: {store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
-        checked={usePin}
+        checked={usePasscode}
         onChange={() => {
-          setUsePin(!usePin);
+          setUsePasscode(!usePasscode);
         }}
       />{' '}
-      Use PIN {usePin ? <input type="text" value={pin} onChange={(e) => setPin(e.target.value)} /> : ''} <br></br>
+      Use Passcode {usePasscode ? <input type="text" value={passcode} onChange={(e) => setPasscode(e.target.value)} /> : ''} <br></br>
       <input
         type="checkbox"
         checked={expires}
@@ -480,7 +480,7 @@ export function SHLinks() {
           {Object.values(ds.shlinks).map((shl, i) => (
             <ul key={i}>
               <li>
-                <em>PIN {shl.serverConfig.pin ? 'enabled 🔒' : 'disabled 🔓'}</em>
+                <em>Passcode {shl.serverConfig.passcode ? 'enabled 🔒' : 'disabled 🔓'}</em>
               </li>
               <li>
                 <em>

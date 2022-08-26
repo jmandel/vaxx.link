@@ -6,7 +6,7 @@ import { inflateRaw, deflateRaw } from 'pako';
 export interface SHLinkConnectRequest {
   shl: string;
   recipient: string;
-  pin?: string;
+  passcode?: string;
 }
 
 export interface SHLinkConnectResponse {
@@ -18,7 +18,7 @@ export interface SHLClientStateDecoded {
   url: string;
   decrypt: string;
   recipient: string;
-  pin?: string;
+  passcode?: string;
 }
 
 export interface SHLDecoded {
@@ -59,7 +59,7 @@ function flag(config: { shl: string }) {
   return parsedShl?.flag;
 }
 
-function needPin(config: { shl: string }) {
+function needPasscode(config: { shl: string }) {
   const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
   const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
   if (parsedShl.flag?.includes('P')) {
@@ -79,7 +79,7 @@ async function retrieve(configIncoming: SHLinkConnectRequest | {state: string}) 
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      pin: config.pin,
+      passcode: config.passcode,
       recipient: config.recipient,
     }),
   });

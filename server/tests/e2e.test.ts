@@ -22,7 +22,7 @@ Deno.test({
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          pin: '1234',
+          passcode: '1234',
         }),
       });
 
@@ -84,7 +84,7 @@ Deno.test({
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          pin: '1234',
+          passcode: '1234',
           recipient: 'Test SHL Client',
         }),
       });
@@ -131,7 +131,7 @@ Deno.test({
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          pin: '1234',
+          passcode: '1234',
         }),
       });
 
@@ -177,7 +177,7 @@ Deno.test({
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          pin: '1234',
+          passcode: '1234',
           recipient: 'Test SHL Client',
         }),
       });

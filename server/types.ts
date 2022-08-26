@@ -22,7 +22,7 @@ export interface HealthLinkEndpoint {
 }
 
 export interface HealthLinkConfig {
-  pin?: string;
+  passcode?: string;
   exp?: number;
 }
 
@@ -31,12 +31,12 @@ export interface HealthLink {
   active: boolean;
   id: string;
   managementToken: string;
-  pinFailuresRemaining: number;
+  passcodeFailuresRemaining: number;
 }
 
 export interface HealthLinkManifestRequest {
   recipient: string;
-  pin?: string;
+  passcode?: string;
 }
 
 export interface SHLinkManifestFile {
