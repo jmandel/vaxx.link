@@ -391,12 +391,10 @@ export function SHLinkCreateCustom() {
   let [usePin, setUsePin]= useState(false);
   let [pin, setPin] = useState('1234');
   let [expires, setExpires] = useState(false);
-  // list of checked vaccination ids to include in the created SHLink
-  const [checkedVaccinations, setCheckedVaccinations] = useState<number[]>([]);
-  
+ 
   const defaultArray = new Array(allVaccineCards.length).fill(false)
   // state for keeping track of checked/unchecked vaccines
-  const [isChecked, setIsChecked] = useState<Array<boolean>>(defaultArray);
+  const [isChecked, setIsChecked] = useState<boolean[]>(defaultArray);
 
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
@@ -405,20 +403,11 @@ export function SHLinkCreateCustom() {
     const updatedCheck = isChecked.map((item: boolean, i: Number) => {
       return i === index ? !item : item
     });
-
-    // update checked vaccinations that will be used to create
-    // the new custom DataSet
-    const updatedCheckedVaccinations: number[] = [];
-    updatedCheck.forEach((item, i) => {
-      if (item === true) {
-        updatedCheckedVaccinations.push(allVaccineCards[i].id);
-      }
-    });
     setIsChecked(updatedCheck);
-    setCheckedVaccinations(updatedCheckedVaccinations); 
   }
 
   async function activate() {
+    const checkedVaccinations = allVaccineCards.map(card => card.id).filter((card, i) => isChecked[i] === true);
     // create new DataSet using the checked vaccinations
     const dsId = idGenerator();
     const customDataSet : DataSet = {
