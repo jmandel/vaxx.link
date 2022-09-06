@@ -1,7 +1,7 @@
 import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
 import { HashRouter, Route, Routes } from "react-router-dom";
-import App, { SettingsPage, SHLinkCreate, SHLinkCreateCustom, SHLinkDetail, SHLinks, Vaccines } from './App';
+import App, { SettingsPage, SHLinkCreate, SHLinkDetail, SHLinks, Vaccines } from './App';
 import './index.css';
 import reportWebVitals from './reportWebVitals';
 
@@ -13,7 +13,6 @@ root.render(
         <Route path="/" element={<App />}>
           <Route index element={<Vaccines/>} />
           <Route path="health-links/new" element={<SHLinkCreate />} />
-          <Route path="health-links/new-custom" element={<SHLinkCreateCustom />} />
           <Route path="health-links" element={<SHLinks />} />
           <Route path="health-links/:datasetId/:shlinkId" element={<SHLinkDetail />} />
           <Route path="settings" element={<SettingsPage />} />

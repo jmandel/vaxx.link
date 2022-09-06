@@ -383,21 +383,15 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
   }),
 );
 
-export function SHLinkCreateCustom() {
+export function SHLinkCreate() {
   let navigate = useNavigate();
+  let location = useLocation();
   let { store, dispatch } = useStore();
-  // display all vaccines 
-  let allVaccineCards = Object.values(store.vaccines);
-  let [usePin, setUsePin]= useState(false);
-  let [pin, setPin] = useState('1234');
+  let [usePasscode, setUsePasscode] = useState(false);
+  let [passcode, setPasscode] = useState('1234');
   let [expires, setExpires] = useState(false);
- 
-  const defaultArray = new Array(allVaccineCards.length).fill(false)
-  // state for keeping track of checked/unchecked vaccines
-  const [isChecked, setIsChecked] = useState<boolean[]>(defaultArray);
 
-  let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
-  let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
+  const { custom } = location.state as LocationState || {}; 
 
   const handleOnChange = (index: Number) => {
     const updatedCheck = isChecked.map((item: boolean, i: Number) => {
@@ -406,86 +400,30 @@ export function SHLinkCreateCustom() {
     setIsChecked(updatedCheck);
   }
 
-  async function activate() {
-    const checkedVaccinations = allVaccineCards.map(card => card.id).filter((card, i) => isChecked[i] === true);
-    // create new DataSet using the checked vaccinations
-    const dsId = idGenerator();
-    const customDataSet : DataSet = {
-      id: dsId,
-      name: `Custom DataSet ${dsId}`,
-      shcs: checkedVaccinations,
-      shlinks: {}
-    };
-    dispatch({ type: 'dataset-add', ds: customDataSet });
-    await serverSyncer.createShl(customDataSet.id, {
-      pin: usePin ? pin : undefined,
-      exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
-    });
-    navigate(`/health-links`, { replace: true });
-  }
-
-  return (
-    <>
-      {' '}
-      <h3>New SMART Health Link: New Custom Dataset</h3>{' '}
-      <input
-        type="checkbox"
-        checked={usePin}
-        onChange={() => {
-          setUsePin(!usePin);
-        }}
-      />{' '}
-      Use PIN {usePin ? <input type="text" value={pin} onChange={(e) => setPin(e.target.value)} /> : ''} <br></br>
-      <input
-        type="checkbox"
-        checked={expires}
-        onChange={() => {
-          setExpires(!expires);
-        }}
-      />{' '}
-      Link expires?{' '}
-      {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
-      <h4>Records to Share</h4>
-      <ol>
-        {allVaccineCards.map((v, i) => {
-          let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
-          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
-          let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
-          return (
-            <li key={i} style={{ fontFamily: 'monospace' }}>
-              <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
-                <label>
-                {' '}  
-               {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
-               {drug.slice(0, 23)}
-               {drug.length > 20 ? '...' : ''} at {location}
-                </label>        
-            </li>
-          );
-        })}
-        </ol>
-      <button onClick={activate}>Activate new sharing link</button>
-    </>
-  );
-
-
-}
-
-export function SHLinkCreate() {
-  let navigate = useNavigate();
-  let { store } = useStore();
-  let [usePasscode, setUsePasscode] = useState(false);
-  let [passcode, setPasscode] = useState('1234');
-  let [expires, setExpires] = useState(false);
-
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
   let [searchParams] = useSearchParams();
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
-  let vaccines = Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs));
+  let vaccines = (custom ? Object.values(store.vaccines) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
+  const defaultArray = new Array(vaccines.length).fill(false)
+  // state for keeping track of checked/unchecked vaccines
+  const [isChecked, setIsChecked] = useState<boolean[]>(defaultArray);
 
   async function activate() {
+    if (custom) {
+      const checkedVaccinations = vaccines.map(card => card.id).filter((card, i) => isChecked[i] === true);
+      // create new DataSet using the checked vaccinations
+      // TODO: Allow user to rename the dataset
+      datasetId = Object.keys(store.sharing).length;
+      const customDataSet : DataSet = {
+        id: datasetId,
+        name: `Custom DataSet ${datasetId}`,
+        shcs: checkedVaccinations,
+        shlinks: {}
+      };
+      dispatch({ type: 'dataset-add', ds: customDataSet });
+    }
     await serverSyncer.createShl(datasetId, {
       passcode: usePasscode ? passcode : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
@@ -497,7 +435,7 @@ export function SHLinkCreate() {
   return (
     <>
       {' '}
-      <h3>New SMART Health Link: {store.sharing[datasetId].name}</h3>{' '}
+      <h3>New SMART Health Link: {custom ? 'New Custom Dataset' : store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
         checked={usePasscode}
@@ -521,13 +459,27 @@ export function SHLinkCreate() {
           let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
           let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
           let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
-          return (
-            <li key={i} style={{ fontFamily: 'monospace' }}>
-              {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
-              {drug.slice(0, 23)}
-              {drug.length > 20 ? '...' : ''} at {location}
+          if (custom) {
+            return (
+              <li key={i} style={{ fontFamily: 'monospace' }}>
+              <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
+                <label>
+                {' '}
+               {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+               {drug.slice(0, 23)}
+               {drug.length > 20 ? '...' : ''} at {location}
+                </label>q
             </li>
-          );
+            )
+          } else {
+            return (
+              <li key={i} style={{ fontFamily: 'monospace' }}>
+                {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+                {drug.slice(0, 23)}
+                {drug.length > 20 ? '...' : ''} at {location}
+              </li>
+            );
+          }
         })}
       </ol>
       <button onClick={activate}>Activate new sharing link</button>
@@ -648,10 +600,14 @@ export function SHLinks() {
       ))}
       <h4>
         New Custom Data Set
-        <button onClick={() => navigate('/health-links/new-custom')}>Create new link</button>
+        <button onClick={() => navigate('/health-links/new?custom=true', {state: {custom: true}})}>Create new dataset and link</button>
       </h4>
     </div>
   );
+}
+
+interface LocationState {
+  custom?: boolean
 }
 
 interface AppState {
