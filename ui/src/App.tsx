@@ -385,13 +385,11 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
 
 export function SHLinkCreate() {
   let navigate = useNavigate();
-  let location = useLocation();
   let { store, dispatch } = useStore();
   let [usePasscode, setUsePasscode] = useState(false);
   let [passcode, setPasscode] = useState('1234');
+  let [datasetName, setDataSetName] = useState(`Custom Dataset ${Object.keys(store.sharing).length}`);
   let [expires, setExpires] = useState(false);
-
-  const { custom } = location.state as LocationState || {}; 
 
   const handleOnChange = (index: Number) => {
     const updatedCheck = isChecked.map((item: boolean, i: Number) => {
@@ -403,6 +401,7 @@ export function SHLinkCreate() {
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
   let [searchParams] = useSearchParams();
+  let custom = Boolean(searchParams.get('custom') === 'true');
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
   let vaccines = (custom ? Object.values(store.vaccines) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
@@ -414,11 +413,10 @@ export function SHLinkCreate() {
     if (custom) {
       const checkedVaccinations = vaccines.map(card => card.id).filter((card, i) => isChecked[i] === true);
       // create new DataSet using the checked vaccinations
-      // TODO: Allow user to rename the dataset
       datasetId = Object.keys(store.sharing).length;
       const customDataSet : DataSet = {
         id: datasetId,
-        name: `Custom DataSet ${datasetId}`,
+        name: datasetName,
         shcs: checkedVaccinations,
         shlinks: {}
       };
@@ -468,7 +466,7 @@ export function SHLinkCreate() {
                {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
                {drug.slice(0, 23)}
                {drug.length > 20 ? '...' : ''} at {location}
-                </label>q
+                </label>
             </li>
             )
           } else {
@@ -482,6 +480,10 @@ export function SHLinkCreate() {
           }
         })}
       </ol>
+      {custom && 
+      <>
+        Custom Dataset Name: <input type='text' value={datasetName} onChange={(e) => setDataSetName(e.target.value)} /> <br></br>
+      </>}
       <button onClick={activate}>Activate new sharing link</button>
     </>
   );
@@ -600,14 +602,10 @@ export function SHLinks() {
       ))}
       <h4>
         New Custom Data Set
-        <button onClick={() => navigate('/health-links/new?custom=true', {state: {custom: true}})}>Create new dataset and link</button>
+        <button onClick={() => navigate('/health-links/new?custom=true')}>Create new dataset and link</button>
       </h4>
     </div>
   );
-}
-
-interface LocationState {
-  custom?: boolean
 }
 
 interface AppState {
