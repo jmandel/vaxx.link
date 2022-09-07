@@ -710,7 +710,12 @@ function reducer(state: AppState, action: AppAction): AppState {
 }
 
 export function SettingsPage() {
-  return <>TODO</>;
+  return <>This site is a demonstration for SMART Health Links.
+  <ul>
+    <li><a href="https://docs.smarthealthit.org/smart-health-links/">About SHL</a></li>
+    <li><a href="https://github.com/jmandel/vaxx.link">Source code</a></li>
+  </ul>
+  </>;
 }
 
 export function Vaccines() {
@@ -805,7 +810,7 @@ function App() {
           icon={<ShareIcon />}
         />
         <BottomNavigationAction
-          label="Settings"
+          label="About"
           component={NavLink}
           value="settings"
           to="/settings"
