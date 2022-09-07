@@ -102,6 +102,7 @@ interface DataSet {
   id: number;
   name: string;
   shcTypes?: string[];
+  shcs?: number[];
   shlinks: Record<number, SHLink>;
 }
 
@@ -230,6 +231,13 @@ function filterForTypes(shcTypes?: string[]) {
   return (shc: StoredSHC) => !!shc?.payload?.vc?.type.some((t) => targetTypes.includes(t));
 }
 
+function filterForIds(shcIds? : number[]) {
+  if (!shcIds) {
+    return () => true;
+  }
+  return (shc: StoredSHC) => shcIds?.includes(shc.id);
+}
+
 let idGenerator = () => Math.random();
 class ServerStateSync {
   dispatch: React.Dispatch<AppAction>;
@@ -306,7 +314,7 @@ class ServerStateSync {
     }[] = [];
 
     for (const ds of Object.values(store.sharing)) {
-      const cardsForDs = allCards.filter(filterForTypes(ds.shcTypes));
+      const cardsForDs = allCards.filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs));
       for (const shl of Object.values(ds.shlinks)) {
         const cardsForShl = Object.keys(shl.uploads).map(Number);
         const needAdditions = cardsForDs.filter((c) => !cardsForShl.includes(c.id)).map((a) => a.id);
@@ -359,7 +367,7 @@ const defaultDatasets: DataSet[] = [
     name: 'School Vaccines',
     shcTypes: ['#immunization'],
     shlinks: {},
-  },
+  }
 ];
 
 const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
@@ -377,19 +385,43 @@ const defaultImmunizations: Promise<StoredSHC[]> = Promise.all(
 
 export function SHLinkCreate() {
   let navigate = useNavigate();
-  let { store } = useStore();
+  let { store, dispatch } = useStore();
   let [usePasscode, setUsePasscode] = useState(false);
   let [passcode, setPasscode] = useState('1234');
+  let [datasetName, setDataSetName] = useState(`Custom Dataset ${Object.keys(store.sharing).length}`);
   let [expires, setExpires] = useState(false);
+
+  const handleOnChange = (index: Number) => {
+    const updatedCheck = isChecked.map((item: boolean, i: Number) => {
+      return i === index ? !item : item
+    });
+    setIsChecked(updatedCheck);
+  }
 
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
   let [searchParams] = useSearchParams();
+  let custom = Boolean(searchParams.get('custom') === 'true');
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
-  let vaccines = Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes));
+  let vaccines = (custom ? Object.values(store.vaccines) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
+  const defaultArray = new Array(vaccines.length).fill(false)
+  // state for keeping track of checked/unchecked vaccines
+  const [isChecked, setIsChecked] = useState<boolean[]>(defaultArray);
 
   async function activate() {
+    if (custom) {
+      const checkedVaccinations = vaccines.map(card => card.id).filter((card, i) => isChecked[i] === true);
+      // create new DataSet using the checked vaccinations
+      datasetId = Object.keys(store.sharing).length;
+      const customDataSet : DataSet = {
+        id: datasetId,
+        name: datasetName,
+        shcs: checkedVaccinations,
+        shlinks: {}
+      };
+      dispatch({ type: 'dataset-add', ds: customDataSet });
+    }
     await serverSyncer.createShl(datasetId, {
       passcode: usePasscode ? passcode : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
@@ -401,7 +433,7 @@ export function SHLinkCreate() {
   return (
     <>
       {' '}
-      <h3>New SMART Health Link: {store.sharing[datasetId].name}</h3>{' '}
+      <h3>New SMART Health Link: {custom ? 'New Custom Dataset' : store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
         checked={usePasscode}
@@ -425,15 +457,33 @@ export function SHLinkCreate() {
           let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
           let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
           let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
-          return (
-            <li key={i} style={{ fontFamily: 'monospace' }}>
-              {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
-              {drug.slice(0, 23)}
-              {drug.length > 20 ? '...' : ''} at {location}
+          if (custom) {
+            return (
+              <li key={i} style={{ fontFamily: 'monospace' }}>
+              <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
+                <label>
+                {' '}
+               {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+               {drug.slice(0, 23)}
+               {drug.length > 20 ? '...' : ''} at {location}
+                </label>
             </li>
-          );
+            )
+          } else {
+            return (
+              <li key={i} style={{ fontFamily: 'monospace' }}>
+                {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+                {drug.slice(0, 23)}
+                {drug.length > 20 ? '...' : ''} at {location}
+              </li>
+            );
+          }
         })}
       </ol>
+      {custom && 
+      <>
+        Custom Dataset Name: <input type='text' value={datasetName} onChange={(e) => setDataSetName(e.target.value)} /> <br></br>
+      </>}
       <button onClick={activate}>Activate new sharing link</button>
     </>
   );
@@ -550,10 +600,9 @@ export function SHLinks() {
           ))}
         </React.Fragment>
       ))}
-
       <h4>
-        Custom Data Set
-        <button>Create new link</button>
+        New Custom Data Set
+        <button onClick={() => navigate('/health-links/new?custom=true')}>Create new dataset and link</button>
       </h4>
     </div>
   );
@@ -573,6 +622,10 @@ type AppAction =
       type: 'vaccine-delete';
       vaccine: StoredSHC;
     }
+  | {
+    type: 'dataset-add';
+    ds: DataSet;
+  }
   | {
       type: 'shl-add';
       datasetId: number;
@@ -603,6 +656,11 @@ type AppAction =
     };
 
 function reducer(state: AppState, action: AppAction): AppState {
+  if (action.type === 'dataset-add') {
+    return produce(state, (state) => {
+      state.sharing[action.ds.id] = action.ds;
+    });
+  }
   if (action.type === 'vaccine-add') {
     return produce(state, (state) => {
       state.vaccines[action.vaccine.id] = action.vaccine;
