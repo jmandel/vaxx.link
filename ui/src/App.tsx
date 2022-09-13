@@ -57,7 +57,7 @@ interface SHLinkStatus {
 
 interface SHLink {
   id: number;
-  name: string;
+  label: string;
   serverConfig: SHLinkConfig;
   serverStatus?: SHLinkStatus;
   encryptionKey?: string;
@@ -82,7 +82,10 @@ function b64urlencode(source: string | Uint8Array) {
 }
 
 function generateLinkUrl(shl: SHLink) {
+  const {label} = shl;
+  const truncatedLabel = label?.length > 80 ? (label.slice(0, 77) + "...") : label;
   const qrPayload = {
+    label: truncatedLabel,
     url: realServerBaseUrl + '/shl/' + shl.serverStatus!.id,
     exp: shl.serverConfig.exp,
     flag: shl.serverConfig.passcode ? 'P' : '',
@@ -116,7 +119,7 @@ interface DataServer {
   ) => Promise<{ eventSource: EventSource; cleanup: () => void }>;
 }
 
-const fakeServerDb: Record<string, Omit<SHLink, 'id' | 'name' | 'encryptionKey'>> = {};
+const fakeServerDb: Record<string, Omit<SHLink, 'id' | 'label' | 'encryptionKey'>> = {};
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const fakeServer: DataServer = {
   storeShc: async (shl, shc) => {
@@ -254,7 +257,7 @@ class ServerStateSync {
     this.server = server;
   }
 
-  async createShl(datasetId: number, serverConfig: SHLinkConfig) {
+  async createShl(label: string, datasetId: number, serverConfig: SHLinkConfig) {
     let serverStatus = await this.server.createShl(serverConfig);
     let newShlinkId = idGenerator();
 
@@ -262,12 +265,15 @@ class ServerStateSync {
     crypto.getRandomValues(encryptionKeyBytes);
     const encryptionKey = jose.base64url.encode(encryptionKeyBytes);
 
+    const store = this.storeRef.current;
+    const dsName = store.sharing[datasetId].name;
+
     this.dispatch({
       type: 'shl-add',
       datasetId,
       shlink: {
         id: newShlinkId,
-        name: 'TODO remove names',
+        label,
         encryptionKey,
         serverConfig,
         serverStatus,
@@ -422,7 +428,9 @@ export function SHLinkCreate() {
       };
       dispatch({ type: 'dataset-add', ds: customDataSet });
     }
-    await serverSyncer.createShl(datasetId, {
+
+    const label = (custom ? datasetName : ds.name);
+    await serverSyncer.createShl(label, datasetId, {
       passcode: usePasscode ? passcode : undefined,
       exp: expires ? new Date(expiresDate).getTime() / 1000 : undefined,
     });
