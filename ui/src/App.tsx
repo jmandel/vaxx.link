@@ -5,8 +5,10 @@ import { BottomNavigation, BottomNavigationAction } from '@mui/material';
 import Container from '@mui/material/Container';
 import produce from 'immer';
 import QRCode from 'qrcode';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
+import { useQrDataContext } from './QrDataProvider';
 import * as jose from 'jose';
 
 import {
@@ -388,7 +390,6 @@ export function SHLinkCreate() {
   let { store, dispatch } = useStore();
   let [usePasscode, setUsePasscode] = useState(false);
   let [passcode, setPasscode] = useState('1234');
-  let [datasetName, setDataSetName] = useState(`Custom Dataset ${Object.keys(store.sharing).length}`);
   let [expires, setExpires] = useState(false);
 
   const handleOnChange = (index: Number) => {
@@ -398,20 +399,37 @@ export function SHLinkCreate() {
     setIsChecked(updatedCheck);
   }
 
+  const deriveSHC = (jws? : string | null) => {
+    if (jws) {
+      const context = new shdc.Context();
+      context.compact = jws;
+      const payload = (shdc.low.decode.jws.compact(context)).jws.payload;
+      const shc: StoredSHC =  {
+        id: idGenerator(),
+        jws,
+        payload,
+      };
+      return [shc];
+    }
+  }
+
   let oneMonthExpiration = new Date(new Date().getTime() + 1000 * 3600 * 24 * 31);
   let [expiresDate, setExpiresDate] = useState(oneMonthExpiration.toISOString().slice(0, 10));
   let [searchParams] = useSearchParams();
   let custom = Boolean(searchParams.get('custom') === 'true');
+  let scanned = Boolean(searchParams.get('scanned') === 'true');
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
-  let vaccines = (custom ? Object.values(store.vaccines) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
-  const defaultArray = new Array(vaccines.length).fill(false)
+  let [datasetName, setDataSetName] = useState(custom ? `Custom Dataset ${Object.keys(store.sharing).length}` : `Scanned Dataset ${Object.keys(store.sharing).length}` );
+  const { jws } = useQrDataContext();
+  let vaccines = (custom ? Object.values(store.vaccines) : scanned ? deriveSHC(jws) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
+  const defaultArray = new Array(vaccines?.length).fill(false)
   // state for keeping track of checked/unchecked vaccines
   const [isChecked, setIsChecked] = useState<boolean[]>(defaultArray);
 
   async function activate() {
     if (custom) {
-      const checkedVaccinations = vaccines.map(card => card.id).filter((card, i) => isChecked[i] === true);
+      const checkedVaccinations = vaccines?.map(card => card.id).filter((card, i) => isChecked[i] === true);
       // create new DataSet using the checked vaccinations
       datasetId = Object.keys(store.sharing).length;
       const customDataSet : DataSet = {
@@ -421,6 +439,16 @@ export function SHLinkCreate() {
         shlinks: {}
       };
       dispatch({ type: 'dataset-add', ds: customDataSet });
+    } else if (scanned) {
+      datasetId = Object.keys(store.sharing).length;
+      const shcDataSet : DataSet = {
+        id: datasetId,
+        name: datasetName,
+        shcs: vaccines?.map(shc => shc.id),
+        shlinks: {}
+      };
+      vaccines?.forEach((vaccine) => dispatch({ type: 'vaccine-add', vaccine }));
+      dispatch({ type: 'dataset-add', ds: shcDataSet });
     }
     await serverSyncer.createShl(datasetId, {
       passcode: usePasscode ? passcode : undefined,
@@ -433,7 +461,7 @@ export function SHLinkCreate() {
   return (
     <>
       {' '}
-      <h3>New SMART Health Link: {custom ? 'New Custom Dataset' : store.sharing[datasetId].name}</h3>{' '}
+      <h3>New SMART Health Link: {custom ? 'New Custom Dataset' : scanned ? 'New Scanned Dataset' : store.sharing[datasetId].name}</h3>{' '}
       <input
         type="checkbox"
         checked={usePasscode}
@@ -453,7 +481,7 @@ export function SHLinkCreate() {
       {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
       <h4>Records to Share</h4>
       <ol>
-        {vaccines.map((v, i) => {
+        {vaccines?.map((v, i) => {
           let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
           let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
           let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
@@ -480,9 +508,9 @@ export function SHLinkCreate() {
           }
         })}
       </ol>
-      {custom && 
+      {(custom || scanned) && 
       <>
-        Custom Dataset Name: <input type='text' value={datasetName} onChange={(e) => setDataSetName(e.target.value)} /> <br></br>
+        Dataset Name: <input type='text' value={datasetName} onChange={(e) => setDataSetName(e.target.value)} /> <br></br>
       </>}
       <button onClick={activate}>Activate new sharing link</button>
     </>
@@ -718,6 +746,10 @@ export function SettingsPage() {
   </>;
 }
 
+export function ErrorPage() {
+  return<>An Error has occurred.</>;
+}
+
 export function Vaccines() {
   let { store } = useStore();
   let vaccines = Object.values(store.vaccines);
@@ -809,6 +841,13 @@ function App() {
           to="/health-links"
           icon={<ShareIcon />}
         />
+        <BottomNavigationAction
+          label="Scan"
+          component={NavLink}
+          value="scan-shc"
+          to="/scan"
+          icon={<QrCodeScannerIcon />}
+         />
         <BottomNavigationAction
           label="About"
           component={NavLink}
