@@ -264,8 +264,6 @@ class ServerStateSync {
     const encryptionKeyBytes = new Uint8Array(32);
     crypto.getRandomValues(encryptionKeyBytes);
     const encryptionKey = jose.base64url.encode(encryptionKeyBytes);
-
-    const store = this.storeRef.current;
     this.dispatch({
       type: 'shl-add',
       datasetId,
