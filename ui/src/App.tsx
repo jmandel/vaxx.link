@@ -266,8 +266,6 @@ class ServerStateSync {
     const encryptionKey = jose.base64url.encode(encryptionKeyBytes);
 
     const store = this.storeRef.current;
-    const dsName = store.sharing[datasetId].name;
-
     this.dispatch({
       type: 'shl-add',
       datasetId,
