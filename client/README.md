@@ -1,15 +1,8 @@
-# Demo UI
-
-## Run in dev
-
-```
-npm run ci
-npm run start
-```
-
+# Sample Client
 
 ## Build for prod
 
 ```
+npm ci
 npm run build
 ```

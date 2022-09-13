@@ -37,6 +37,7 @@ export interface HealthLink {
 export interface HealthLinkManifestRequest {
   recipient: string;
   passcode?: string;
+  embedMaxBytes?: number;
 }
 
 export interface SHLinkManifestFile {

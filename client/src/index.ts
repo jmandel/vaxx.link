@@ -32,6 +32,7 @@ export interface SHLManifestFile {
   files: {
     contentType: string;
     location: string;
+    embedded?: string;
   }[];
 }
 
@@ -88,7 +89,13 @@ async function retrieve(configIncoming: SHLinkConnectRequest | {state: string}) 
 
   const allFiles = manifestResponseJson.files
     .filter((f) => f.contentType === 'application/smart-health-card')
-    .map((f) => fetch(f.location).then((f) => f.text()));
+    .map(async (f) =>  {
+      if (f.embedded !== undefined) {
+        return f.embedded
+      } else {
+        return fetch(f.location).then((f) => f.text())
+      }
+    });
 
   const decryptionKey = base64url.toBuffer(parsedShl.decrypt);
   const allFilesDecrypted = allFiles.map(async (f) => {

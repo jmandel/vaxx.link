@@ -111,7 +111,7 @@ export const DbLinks = {
     return hashEncoded;
   },
   async addEndpoint(linkId: string, endpoint: types.HealthLinkEndpoint): Promise<string> {
-    const id = await randomStringWithEntropy(32);
+    const id = randomStringWithEntropy(32);
 
     await updateAccessToken(endpoint);
     db.query(
@@ -147,14 +147,21 @@ export const DbLinks = {
     ]);
     return await true;
   },
-  getManifestFiles(linkId: string) {
-    const files = db.queryEntries<{ content_type: string; content_hash: string }>(
-      `select content_type, content_hash from shlink_file where shlink=?`,
+  getManifestFiles(linkId: string, maxEmbedBytes?: number) {
+    const files = db.queryEntries<{ content_type: string; content_hash: string, content?: Uint8Array }>(
+      `select
+      content_type,
+      content_hash,
+      (case when length(cas_item.content) <= ${maxEmbedBytes} then cas_item.content else NULL end) as content
+      from shlink_file
+      join cas_item on shlink_file.content_hash=cas_item.hash
+      where shlink=?`,
       [linkId],
     );
     return files.map((r) => ({
       contentType: r.content_type as types.SHLinkManifestFile['contentType'],
       hash: r.content_hash,
+      content: r.content
     }));
   },
   getManifestEndpoints(linkId: string) {
