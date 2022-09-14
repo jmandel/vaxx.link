@@ -5,7 +5,14 @@ const defaultEnv = {
 
 async function envOrDefault(variable: string, defaultValue: string | number) {
   const havePermission = (await Deno.permissions.query({ name: 'env', variable })).state === 'granted';
-  const ret = (havePermission && Deno.env.get(variable)) || '' + defaultValue;
+  let ret;
+  try  {
+    // in Deno 1.25.1 sometimes 'granted' still leads to a prompt
+    // remove this `try` when https://github.com/denoland/deno/issues/15894 is resolved
+    ret = (havePermission && Deno.env.get(variable)) || '' + defaultValue;
+  }  catch {
+    ret = '' + defaultValue
+  }
   return typeof defaultValue === 'number' ? parseFloat(ret) : ret;
 }
 

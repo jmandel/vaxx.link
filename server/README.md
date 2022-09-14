@@ -6,7 +6,7 @@
 
 # Run
 ```
-deno run --allow-env="PORT" --allow-read=".","./db" --allow-write="./db" --allow-net --watch server.ts
+deno run --allow-env="PORT","PUBLIC_URL","EMBED_MAX_BYTES" --allow-read=".","./db" --allow-write="./db" --allow-net --watch server.ts
 ```
 
 # Test
