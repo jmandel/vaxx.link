@@ -1,21 +1,17 @@
 import React, { createContext, useContext, useReducer } from 'react';
 
 interface State {
-  qrCodes?: null | string;
+  qrCodes?: null | string[];
   jws?: null | string;
   setQrCodes: (arg: any) => any;
   resetQrCodes: () => any;
 }
 
-const initialState: State = {
-  qrCodes: '',
-  setQrCodes: () => {
-    return;
-  },
-  resetQrCodes: () => {
-    return;
-  },
+let initialState: State = {
+  qrCodes: null,
   jws: null,
+  setQrCodes: () => null,
+  resetQrCodes: () => null
 };
 
 const actions = {
@@ -25,14 +21,17 @@ const actions = {
 
 const QrDataContext = createContext<State>(initialState);
 
-const getJws = (qrCodes: string) => {
-  const sliceIndex = qrCodes.lastIndexOf('/');
-  const rawPayload = qrCodes.slice(sliceIndex + 1);
+const getJws = (qrCodes: string[]) => {
+  return qrCodes.map((c) => {
+    const sliceIndex = c.lastIndexOf('/');
+  const rawPayload = c.slice(sliceIndex + 1);
   const encodingChars = rawPayload.match(/\d\d/g);
   return encodingChars?.map((charPair) => String.fromCharCode(+charPair + 45)).join('');
+  }).join('');
 };
 
 const reducer = (state: any, action: any) => {
+  console.log(localStorage);
   switch (action.type) {
     case actions.SET_QR_CODES: {
       let newState: State = initialState;
@@ -59,12 +58,11 @@ const reducer = (state: any, action: any) => {
 };
 
 const QrDataProvider = ({ children }: any) => {
-  const qrCodeContent = localStorage.getItem('qrCodes');
   const [state, dispatch] = useReducer(
     reducer,
     reducer(initialState, {
       type: actions.SET_QR_CODES,
-      qrCodes: qrCodeContent || '',
+      qrCodes: JSON.parse(localStorage.getItem('qrCodes') || ''),
     }),
   );
 

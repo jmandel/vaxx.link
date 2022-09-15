@@ -17,7 +17,7 @@ const QrScan = () => {
   const handleErrorFallback = useErrorHandler();
   const { setQrCodes, resetQrCodes, qrCodes } = useQrDataContext();
   const [scannedCodes, setScannedCodes] = useState<(null | string)[]>([]);
-  const [scannedData, setScannedData] = useState<null | string>(null);
+  const [scannedData, setScannedData] = useState<string>('');
   const runningQrScanner = useRef<null | QrScanner>(null);
   const scannedCodesRef = useRef<(null | string)[]>([]);
 
@@ -85,20 +85,6 @@ const QrScan = () => {
     zIndex: '2',
   });
 
-  const StyledVideo = styled('video')({
-    objectFit: 'cover',
-    position: 'absolute',
-    width: '90%',
-    height: '90%',
-    zIndex: '1',
-    '& section': {
-      position: 'unset !important',
-      '& div': {
-        boxShadow: 'unset !important',
-      },
-    },
-  });
-
   const confirmSHLCreation = () => {
     if (window.confirm('SMART Health Card successfully scanned. Create new SMART Health Link?') === true) {
       return true;
@@ -111,48 +97,14 @@ const QrScan = () => {
     navigate('/error');
   }, [navigate]);
 
-  /**
-   * Create QrScanner instance using video element and specify result/error conditions
-   * @param {HTMLVideoElement} videoElement HTML video element
-   */
-   const createQrScanner = async (videoElement: any) => {
-    if (!videoElement) {
-      if (runningQrScanner.current) {
-        qrScan.destroy();
-      }
-      return;
+  useEffect(() => () => {
+    if (runningQrScanner.current) {
+      runningQrScanner.current.stop();
     }
-    qrScan = new QrScanner(
-      videoElement,
-      (results) => {
-        setScannedData(results.data);
-      },
-      {
-        preferredCamera: 'environment',
-        calculateScanRegion: (video) => ({
-          // define scan region for QrScanner
-          x: 0,
-          y: 0,
-          width: video.videoWidth,
-          height: video.videoHeight,
-        }),
-      },
-    );
-    runningQrScanner.current = qrScan;
+  }, [])
 
-    qrScan.start();
-  };
 
-  useEffect(
-    () => () => {
-      if (runningQrScanner.current) {
-        runningQrScanner.current.stop();
-      }
-    },
-    [],
-  );
-
-  const videoRef = useRef<null | HTMLVideoElement>(null);
+  const videoRef = useRef<any>(null);
   // Get user media when the page first renders, and feed into createQrScanner()
   useEffect(() => {
     const getUserMedia = async () => {
@@ -168,6 +120,38 @@ const QrScan = () => {
         throw new Error(`Cannot access video: ${err.message}.`);
       }
     }; 
+
+    /**
+    * Create QrScanner instance using video element and specify result/error conditions
+    * @param {HTMLVideoElement} videoElement HTML video element
+    */
+    const createQrScanner = async (videoElement: any) => {
+      if (!videoElement) {
+        if (runningQrScanner.current) {
+          qrScan.destroy();
+        }
+        return;
+      }
+      qrScan = new QrScanner(
+        videoElement,
+        (results) => {
+          setScannedData(results.data);
+        },
+        {
+          preferredCamera: 'environment',
+          calculateScanRegion: (video) => ({
+            // define scan region for QrScanner
+            x: 0,
+            y: 0,
+            width: video.videoWidth,
+            height: video.videoHeight,
+          }),
+        },
+      );
+      runningQrScanner.current = qrScan;
+
+      qrScan.start();
+    };
 
     if (!runningQrScanner.current) {
       getUserMedia().then(async () => {
@@ -218,7 +202,7 @@ const QrScan = () => {
       } else {
         if (confirmSHLCreation() === true) {
           resetQrCodes();
-          setQrCodes(data);
+          setQrCodes([data]);
           navigate('/health-links/new?scanned=true');
         } else {
            navigate('/');
@@ -235,7 +219,7 @@ const QrScan = () => {
     }
 
     return () => {
-      setScannedData(null);
+      setScannedData('');
     };
   }, [scannedData, handleError, navigate, location, setQrCodes, resetQrCodes, qrCodes]);
 
@@ -252,7 +236,7 @@ const QrScan = () => {
                   variant="contained"
                   color={code ? 'success' : 'error'}
                   disableRipple
-                  style={{ marginRight: '0.5rem' }}
+                  style={{ marginRight: '0.5rem', zIndex: -1 }}
                 >
                   {`${i + 1}/${scannedCodes.length}`}
                 </Button>
@@ -261,7 +245,10 @@ const QrScan = () => {
           )}
         </Grid>
         <Grid item sx={classes.gridItem}>
-          <StyledVideo muted id="styled-video" ref={videoRef} />
+          <video muted id="styled-video" ref={videoRef}
+          style={{objectFit: 'cover', position: 'absolute',
+          width: '90%', height: '90%', zIndex: '1',
+          }} />
           <StyledImg alt="Scan Frame" src={frame} />
         </Grid>
       </Grid>
