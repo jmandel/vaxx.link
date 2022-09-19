@@ -482,30 +482,34 @@ export function SHLinkCreate() {
       <h4>Records to Share</h4>
       <ol>
         {vaccines?.map((v, i) => {
-          let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
-          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
-          let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
-          if (custom) {
-            return (
-              <li key={i} style={{ fontFamily: 'monospace' }}>
-              <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
-                <label>
-                {' '}
-               {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
-               {drug.slice(0, 23)}
-               {drug.length > 20 ? '...' : ''} at {location}
-                </label>
-            </li>
-            )
-          } else {
-            return (
-              <li key={i} style={{ fontFamily: 'monospace' }}>
+          try {
+            let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
+            let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
+            let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
+            if (custom) {
+              return (
+                <li key={i} style={{ fontFamily: 'monospace' }}>
+                <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
+                  <label>
+                  {' '}
                 {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
                 {drug.slice(0, 23)}
                 {drug.length > 20 ? '...' : ''} at {location}
+                  </label>
               </li>
-            );
-          }
+              )
+            } else {
+              return (
+                <li key={i} style={{ fontFamily: 'monospace' }}>
+                  {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+                  {drug.slice(0, 23)}
+                  {drug.length > 20 ? '...' : ''} at {location}
+                </li>
+              );
+            }
+          } catch {
+            navigate('/error');
+          }      
         })}
       </ol>
       {(custom || scanned) && 
