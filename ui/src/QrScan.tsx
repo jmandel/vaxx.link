@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button, Grid, Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/system';
@@ -93,66 +93,57 @@ const QrScan = () => {
     }
   };
 
-  const handleError = useCallback(() => {
-    navigate('/error');
-  }, [navigate]);
-
-  useEffect(() => () => {
-    if (runningQrScanner.current) {
-      runningQrScanner.current.stop();
-    }
-  }, [])
-
-
-  const videoRef = useRef<any>(null);
-  // Get user media when the page first renders, and feed into createQrScanner()
-  useEffect(() => {
-    const getUserMedia = async () => {
-      try {
-        if (videoRef.current) {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: 'environment' },
-          });
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err: any) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const getUserMedia = async () => {
+    try {
+      if (videoRef.current) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: 'environment' },
+        });
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      if (err instanceof Error) {
         throw new Error(`Cannot access video: ${err.message}.`);
       }
-    }; 
+    }
+  };
 
-    /**
-    * Create QrScanner instance using video element and specify result/error conditions
-    * @param {HTMLVideoElement} videoElement HTML video element
-    */
-    const createQrScanner = async (videoElement: any) => {
-      if (!videoElement) {
-        if (runningQrScanner.current) {
-          qrScan.destroy();
-        }
-        return;
+  /**
+   * Create QrScanner instance using video element and specify result/error conditions
+   * @param {HTMLVideoElement | null} videoElement HTML video element
+   */
+  const createQrScanner = async (videoElement: HTMLVideoElement | null) => {
+    if (!videoElement) {
+      if (runningQrScanner.current) {
+        qrScan.destroy();
       }
-      qrScan = new QrScanner(
-        videoElement,
-        (results) => {
-          setScannedData(results.data);
-        },
-        {
-          preferredCamera: 'environment',
-          calculateScanRegion: (video) => ({
-            // define scan region for QrScanner
-            x: 0,
-            y: 0,
-            width: video.videoWidth,
-            height: video.videoHeight,
-          }),
-        },
-      );
-      runningQrScanner.current = qrScan;
+      return;
+    }
+    qrScan = new QrScanner(
+      videoElement,
+      (results) => {
+        setScannedData(results.data);
+      },
+      {
+        preferredCamera: 'environment',
+        calculateScanRegion: (video) => ({
+          // define scan region for QrScanner
+          x: 0,
+          y: 0,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        }),
+      },
+    );
+    runningQrScanner.current = qrScan;
 
-      qrScan.start();
-    };
+    qrScan.start();
+  };
 
+  // Get user media when the page first renders, and feed into createQrScanner()
+  useEffect(() => {
     if (!runningQrScanner.current) {
       getUserMedia().then(async () => {
         await createQrScanner(videoRef.current);
@@ -188,10 +179,11 @@ const QrScan = () => {
         if (tempScannedCodes[currentChunkIndex - 1] === null) {
           tempScannedCodes[currentChunkIndex - 1] = data;
         }
-        if (tempScannedCodes.every((code) => code)) {
+        if (tempScannedCodes.every((code) => code !== null)) {
+          let scannedCodes: string[] = tempScannedCodes.flatMap((code) => (code ? [code] : []));
           if (confirmSHLCreation() === true) {
             resetQrCodes();
-            setQrCodes(tempScannedCodes);
+            setQrCodes(scannedCodes);
             navigate('/health-links/new?scanned=true');
           } else {
             navigate('/');
@@ -205,9 +197,13 @@ const QrScan = () => {
           setQrCodes([data]);
           navigate('/health-links/new?scanned=true');
         } else {
-           navigate('/');
+          navigate('/');
         }
       }
+    };
+
+    const handleError = () => {
+      navigate('/error');
     };
 
     if (scannedData) {
@@ -221,7 +217,7 @@ const QrScan = () => {
     return () => {
       setScannedData('');
     };
-  }, [scannedData, handleError, navigate, location, setQrCodes, resetQrCodes, qrCodes]);
+  }, [scannedData, navigate, location, setQrCodes, resetQrCodes, qrCodes]);
 
   return (
     <Box sx={classes.box}>
@@ -245,10 +241,12 @@ const QrScan = () => {
           )}
         </Grid>
         <Grid item sx={classes.gridItem}>
-          <video muted id="styled-video" ref={videoRef}
-          style={{objectFit: 'cover', position: 'absolute',
-          width: '90%', height: '90%', zIndex: '1',
-          }} />
+          <video
+            muted
+            id="styled-video"
+            ref={videoRef}
+            style={{ objectFit: 'cover', position: 'absolute', width: '90%', height: '90%', zIndex: '1' }}
+          />
           <StyledImg alt="Scan Frame" src={frame} />
         </Grid>
       </Grid>

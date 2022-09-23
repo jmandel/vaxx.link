@@ -1,17 +1,17 @@
 import React, { createContext, useContext, useReducer } from 'react';
 
 interface State {
-  qrCodes?: null | string[];
-  jws?: null | string;
-  setQrCodes: (arg: any) => any;
-  resetQrCodes: () => any;
+  qrCodes: null | string[];
+  jws: null | string;
+  setQrCodes: (qrCodes?: string[]) => void;
+  resetQrCodes: () => void;
 }
 
 let initialState: State = {
   qrCodes: null,
   jws: null,
   setQrCodes: () => null,
-  resetQrCodes: () => null
+  resetQrCodes: () => null,
 };
 
 const actions = {
@@ -22,16 +22,17 @@ const actions = {
 const QrDataContext = createContext<State>(initialState);
 
 const getJws = (qrCodes: string[]) => {
-  return qrCodes.map((c) => {
-    const sliceIndex = c.lastIndexOf('/');
-  const rawPayload = c.slice(sliceIndex + 1);
-  const encodingChars = rawPayload.match(/\d\d/g);
-  return encodingChars?.map((charPair) => String.fromCharCode(+charPair + 45)).join('');
-  }).join('');
+  return qrCodes
+    .map((c) => {
+      const sliceIndex = c.lastIndexOf('/');
+      const rawPayload = c.slice(sliceIndex + 1);
+      const encodingChars = rawPayload.match(/\d\d/g);
+      return encodingChars?.map((charPair) => String.fromCharCode(+charPair + 45)).join('');
+    })
+    .join('');
 };
 
-const reducer = (state: any, action: any) => {
-  console.log(localStorage);
+const reducer = (state: State, action: { type: string; qrCodes?: string[] }) => {
   switch (action.type) {
     case actions.SET_QR_CODES: {
       let newState: State = initialState;
@@ -39,9 +40,7 @@ const reducer = (state: any, action: any) => {
 
       if (action.qrCodes) {
         newState.qrCodes = action.qrCodes;
-        newState.jws = '';
-        const jws = getJws(action.qrCodes);
-        newState.jws = jws;
+        newState.jws = getJws(action.qrCodes);
       } else newState.jws = null;
       return {
         ...state,
@@ -69,10 +68,10 @@ const QrDataProvider = ({ children }: any) => {
   const value = {
     qrCodes: state.qrCodes,
     jws: state.jws,
-    validationStatus: state.validationStatus,
-    matchingDemographicData: state.matchingDemographicData,
-    setQrCodes: (qrCodes: string) => {
-      dispatch({ type: actions.SET_QR_CODES, qrCodes });
+    setQrCodes: (qrCodes?: string[]) => {
+      if (qrCodes) {
+        dispatch({ type: actions.SET_QR_CODES, qrCodes });
+      }
     },
     resetQrCodes: () => {
       dispatch({ type: actions.RESET_QR_CODES });
