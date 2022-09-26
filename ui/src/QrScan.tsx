@@ -5,9 +5,9 @@ import { styled } from '@mui/system';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import frame from './assets/frame.png';
-import { useQrDataContext } from './QrDataProvider';
 import QrScanner from 'qr-scanner';
 import { useErrorHandler } from 'react-error-boundary';
+import { useStore, deriveSHC } from './App';
 
 let qrScan: QrScanner;
 
@@ -15,11 +15,22 @@ const QrScan = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const handleErrorFallback = useErrorHandler();
-  const { setQrCodes, resetQrCodes, qrCodes } = useQrDataContext();
   const [scannedCodes, setScannedCodes] = useState<(null | string)[]>([]);
   const [scannedData, setScannedData] = useState<string>('');
   const runningQrScanner = useRef<null | QrScanner>(null);
   const scannedCodesRef = useRef<(null | string)[]>([]);
+  const { store, dispatch } = useStore();
+
+  const getJws = (qrCodes: string[]) => {
+    return qrCodes
+      .map((c) => {
+        const sliceIndex = c.lastIndexOf('/');
+        const rawPayload = c.slice(sliceIndex + 1);
+        const encodingChars = rawPayload.match(/\d\d/g);
+        return encodingChars?.map((charPair) => String.fromCharCode(+charPair + 45)).join('');
+      })
+      .join('');
+  };
 
   const theme = useTheme();
   const classes = {
@@ -86,7 +97,7 @@ const QrScan = () => {
   });
 
   const confirmSHLCreation = () => {
-    if (window.confirm('SMART Health Card successfully scanned. Create new SMART Health Link?') === true) {
+    if (window.confirm('SMART Health Card successfully scanned. Store this SMART Health Card?') === true) {
       return true;
     } else {
       return false;
@@ -182,22 +193,16 @@ const QrScan = () => {
         if (tempScannedCodes.every((code) => code !== null)) {
           let scannedCodes: string[] = tempScannedCodes.flatMap((code) => (code ? [code] : []));
           if (confirmSHLCreation() === true) {
-            resetQrCodes();
-            setQrCodes(scannedCodes);
-            navigate('/health-links/new?scanned=true');
-          } else {
-            navigate('/');
+            const jws = getJws(scannedCodes);
+            dispatch({ type: 'vaccine-add', vaccine: deriveSHC(jws, Object.keys(store.vaccines).length) });
           }
         }
         setScannedCodes(tempScannedCodes);
         scannedCodesRef.current = tempScannedCodes;
       } else {
         if (confirmSHLCreation() === true) {
-          resetQrCodes();
-          setQrCodes([data]);
-          navigate('/health-links/new?scanned=true');
-        } else {
-          navigate('/');
+          const jws = getJws([data]);
+          dispatch({ type: 'vaccine-add', vaccine: deriveSHC(jws, Object.keys(store.vaccines).length) });
         }
       }
     };
@@ -217,7 +222,7 @@ const QrScan = () => {
     return () => {
       setScannedData('');
     };
-  }, [scannedData, navigate, location, setQrCodes, resetQrCodes, qrCodes]);
+  }, [scannedData, navigate, location, dispatch]);
 
   return (
     <Box sx={classes.box}>

@@ -5,13 +5,11 @@ import App, { SettingsPage, SHLinkCreate, SHLinkDetail, SHLinks, Vaccines, Error
 import './index.css';
 import reportWebVitals from './reportWebVitals';
 import QrScan from './QrScan';
-import { QrDataProvider } from './QrDataProvider';
 
 let root = ReactDOMClient.createRoot(document.getElementById('root')!);
 
 root.render(
     <HashRouter>
-      <QrDataProvider>
         <Routes>
           <Route path="/" element={<App />}>
             <Route index element={<Vaccines/>} />
@@ -23,7 +21,6 @@ root.render(
             <Route path="error" element={<ErrorPage />} />
           </Route>
         </Routes>
-      </QrDataProvider>
     </HashRouter>
 );
 
