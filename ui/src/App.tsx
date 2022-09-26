@@ -418,13 +418,13 @@ export function SHLinkCreate() {
   let ds = store.sharing[datasetId];
   let [datasetName, setDataSetName] = useState(`Custom Dataset ${Object.keys(store.sharing).length}`);
   let vaccines = (custom ? Object.values(store.vaccines) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
-  const defaultArray = new Array(vaccines?.length).fill(false)
+  const defaultArray = new Array(vaccines.length).fill(false)
   // state for keeping track of checked/unchecked vaccines
   const [isChecked, setIsChecked] = useState<boolean[]>(defaultArray);
 
   async function activate() {
     if (custom) {
-      const checkedVaccinations = vaccines?.map(card => card.id).filter((card, i) => isChecked[i] === true);
+      const checkedVaccinations = vaccines.map(card => card.id).filter((card, i) => isChecked[i] === true);
       // create new DataSet using the checked vaccinations
       datasetId = Object.keys(store.sharing).length;
       const customDataSet : DataSet = {
@@ -466,7 +466,7 @@ export function SHLinkCreate() {
       {expires ? <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)} /> : ''}{' '}
       <h4>Records to Share</h4>
       <ol>
-        {vaccines?.map((v, i) => {
+        {vaccines.map((v, i) => {
           try {
             let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
             let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
