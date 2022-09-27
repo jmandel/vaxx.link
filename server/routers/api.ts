@@ -36,7 +36,7 @@ export const shlApiRouter = new oak.Router()
   })
   .post('/shl/:shlId', async (context) => {
     const config: types.HealthLinkManifestRequest = await context.request.body({ type: 'json' }).value;
-    const embedMaxBytes = Math.min(env.EMBED_MAX_BYTES, config.embedMaxBytes !== undefined ? config.embedMaxBytes : Infinity);
+    const embeddedLengthMax = Math.min(env.EMBEDDED_LENGTH_MAX, config.embeddedLengthMax !== undefined ? config.embeddedLengthMax : Infinity);
 
     const shl = db.DbLinks.getShlInternal(context.params.shlId);
     if (!shl) {
@@ -65,7 +65,7 @@ export const shlApiRouter = new oak.Router()
 
     context.response.headers.set('expires', new Date().toUTCString());
     context.response.body = {
-      files: db.DbLinks.getManifestFiles(shl.id, embedMaxBytes)
+      files: db.DbLinks.getManifestFiles(shl.id, embeddedLengthMax)
         .map((f, _i) => ({
           contentType: f.contentType,
           embedded: f.content?.length ? new TextDecoder().decode(f.content) : undefined,

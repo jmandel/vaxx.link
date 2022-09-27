@@ -1,6 +1,6 @@
 const defaultEnv = {
   PUBLIC_URL: 'http://localhost:8000',
-  EMBED_MAX_BYTES: 10_000
+  EMBEDDED_LENGTH_MAX: 10_000
 };
 
 async function envOrDefault(variable: string, defaultValue: string | number) {

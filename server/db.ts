@@ -147,12 +147,12 @@ export const DbLinks = {
     ]);
     return await true;
   },
-  getManifestFiles(linkId: string, maxEmbedBytes?: number) {
+  getManifestFiles(linkId: string, embeddedLengthMax?: number) {
     const files = db.queryEntries<{ content_type: string; content_hash: string, content?: Uint8Array }>(
       `select
       content_type,
       content_hash,
-      (case when length(cas_item.content) <= ${maxEmbedBytes} then cas_item.content else NULL end) as content
+      (case when length(cas_item.content) <= ${embeddedLengthMax} then cas_item.content else NULL end) as content
       from shlink_file
       join cas_item on shlink_file.content_hash=cas_item.hash
       where shlink=?`,
