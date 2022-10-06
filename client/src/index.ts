@@ -16,14 +16,14 @@ export interface SHLinkConnectResponse {
 
 export interface SHLClientStateDecoded {
   url: string;
-  decrypt: string;
+  key: string;
   recipient: string;
   passcode?: string;
 }
 
 export interface SHLDecoded {
   url: string;
-  decrypt: string;
+  key: string;
   flag?: string;
   label?: string;
 }
@@ -97,7 +97,7 @@ async function retrieve(configIncoming: SHLinkConnectRequest | {state: string}) 
       }
     });
 
-  const decryptionKey = base64url.toBuffer(parsedShl.decrypt);
+  const decryptionKey = base64url.toBuffer(parsedShl.key);
   const allFilesDecrypted = allFiles.map(async (f) => {
     const decrypted = await jose.compactDecrypt(await f, decryptionKey);
     const decoded = new TextDecoder().decode(decrypted.plaintext);

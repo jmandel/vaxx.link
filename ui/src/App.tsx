@@ -89,7 +89,7 @@ function generateLinkUrl(shl: SHLink) {
     url: realServerBaseUrl + '/shl/' + shl.serverStatus!.id,
     exp: shl.serverConfig.exp,
     flag: shl.serverConfig.passcode ? 'P' : '',
-    decrypt: shl.encryptionKey,
+    key: shl.encryptionKey,
   };
 
   const qrJson = JSON.stringify(qrPayload);

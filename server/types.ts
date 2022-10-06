@@ -57,7 +57,7 @@ export interface SHLinkAddFileRequest {
 export interface SHLDecoded {
   url: string;
   flag: string;
-  decrypt: string & { length: 43 };
+  key: string & { length: 43 };
   exp?: number;
   label?: string;
 }
