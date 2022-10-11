@@ -76,6 +76,22 @@ Deno.test({
       },
     });
 
+    await t.step('Try to fetch manifest with wrong passcode', async function () {
+      const manifestResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          passcode: 'BAD-PASSCODE',
+          recipient: 'Test SHL Client',
+        }),
+      });
+
+      assertions.assertEquals(manifestResponse.status, 401);
+    });
+
+ 
     let manifestJson: any;
     await t.step('Obtain manifest from SHL server', async function () {
       const manifestResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}`, {

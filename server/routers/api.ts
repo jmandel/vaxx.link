@@ -38,20 +38,21 @@ export const shlApiRouter = new oak.Router()
     const config: types.HealthLinkManifestRequest = await context.request.body({ type: 'json' }).value;
     const embeddedLengthMax = Math.min(env.EMBEDDED_LENGTH_MAX, config.embeddedLengthMax !== undefined ? config.embeddedLengthMax : Infinity);
 
-    const shl = db.DbLinks.getShlInternal(context.params.shlId);
-    if (!shl) {
-      throw 'Cannot resolve manifest; SHL does not exist';
-    }
-
-    if (!shl.active) {
-      throw 'Cannot resolve manifest; SHL is not active';
-    }
-
-    if (shl.config.passcode && shl.config.passcode !== config.passcode) {
-      db.DbLinks.recordPasscodeFailure(shl.id);
-      context.response.status = 401;
-      context.response.body = { remainingAttempts: shl.passcodeFailuresRemaining - 1 };
-      return;
+    let shl: types.HealthLink;
+    try {
+      shl = db.DbLinks.getShlInternal(context.params.shlId);
+      if (!shl?.active) {
+        throw 'Cannot resolve manifest; no active SHL exists';
+      }
+      if (shl.config.passcode && shl.config.passcode !== config.passcode) {
+        db.DbLinks.recordPasscodeFailure(shl.id);
+        context.response.status = 401;
+        context.response.body = { remainingAttempts: shl.passcodeFailuresRemaining - 1 };
+        return;
+      }
+    } catch {
+        context.response.status = 404;
+        return;
     }
 
     const ticket = randomStringWithEntropy(32);
