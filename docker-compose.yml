@@ -1,0 +1,20 @@
+---
+version: "3.4"
+services:
+  server:
+    container_name: vaxx.link.server
+    build: ./server
+    ports:
+      # allow override of published port
+      - "127.0.0.1:${EXTERNAL_PORT:-9000}:8000"
+    environment:
+      - REACT_APP_REAL_SERVER_BASE: ${REACT_APP_REAL_SERVER_BASE:-https://smart-health-links-server.cirg.washington.edu/api}
+    env_file:
+      - .env
+  client:
+    container_name: vaxx.link.client
+    build: .
+    ports:
+      - "127.0.0.1:${EXTERNAL_PORT:-9001}:3000"
+    env_file:
+      - .env
