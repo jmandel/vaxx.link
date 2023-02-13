@@ -4,6 +4,16 @@ const { Application, Router } = oak;
 const { oakCors } = cors;
 
 const app = new Application({ logErrors: false });
+
+app.use(async (ctx, next) => {
+  const t0 = new Date().getTime();
+  await next();
+  const t1 = new Date().getTime();
+  const rt = ctx.response.headers.get("X-Response-Time");
+  const status = ctx.response.status;
+  console.log(`${ctx.request.method} ${ctx.request.url} - ${status}, ${(t1-t0)}ms`);
+});
+
 app.use(oakCors());
 
 const appRouter = new Router()
