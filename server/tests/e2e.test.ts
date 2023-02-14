@@ -107,9 +107,54 @@ Deno.test({
 
       assertions.assertEquals(manifestResponse.status, 200);
       manifestJson = await manifestResponse.json();
-      // console.log('Access Token Response');
-      // console.log(JSON.stringify(tokenResponseJson, null, 2));
     });
+
+    await t.step('Update Passcode', async function () {
+      const putResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}`, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${shl.managementToken}`,
+        },
+        body: JSON.stringify({
+          passcode: '5678',
+        }),
+      });
+      assertions.assertEquals(putResponse.status, 200);
+    });
+
+    await t.step('Try to fetch manifest with wrong passcode', async function () {
+      const manifestResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          passcode: '1234',
+          recipient: 'Test SHL Client',
+        }),
+      });
+
+      assertions.assertEquals(manifestResponse.status, 401);
+    });
+
+    await t.step('Re-obtain manifest from SHL server', async function () {
+      const manifestResponse = await fetch(`${env.PUBLIC_URL}/api/shl/${shl!.id}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          passcode: '5678',
+          recipient: 'Test SHL Client',
+        }),
+      });
+
+      assertions.assertEquals(manifestResponse.status, 200);
+      manifestJson = await manifestResponse.json();
+    });
+
+
 
     await t.step('Ensure event subscriptions announce a new manifest request', async function () {
       const sseReader = sseRequest.body?.getReader();
