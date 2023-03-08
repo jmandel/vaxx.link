@@ -31,7 +31,7 @@ export interface SHLDecoded {
 export interface SHLManifestFile {
   files: {
     contentType: string;
-    location: string;
+    location?: string;
     embedded?: string;
   }[];
 }
@@ -74,18 +74,28 @@ async function retrieve(configIncoming: SHLinkConnectRequest | {state: string}) 
   const config: SHLinkConnectRequest = configIncoming["state"] ? JSON.parse(base64url.decode(configIncoming["state"])) : configIncoming
   const shlBody = config.shl.split(/^(?:.+:\/.+#)?shlink:\//)[1];
   const parsedShl: SHLDecoded = decodeBase64urlToJson(shlBody);
-  const manifestResponse = await fetch(parsedShl.url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      passcode: config.passcode,
-      recipient: config.recipient,
-    }),
-  });
 
-  const manifestResponseJson = (await manifestResponse.json()) as SHLManifestFile;
+  let manifestResponseJson: SHLManifestFile;
+  if (parsedShl.flag?.includes('U')) {
+    const fileResponse = await fetch(parsedShl.url + `?recipient=${config.recipient}`);
+    manifestResponseJson = {
+      files: [{
+          contentType: fileResponse.headers.get('content-type') || 'application/smart-health-card',
+          embedded: await fileResponse.text(),
+        }],
+    };
+  } else {
+    manifestResponseJson = await fetch(parsedShl.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        passcode: config.passcode,
+        recipient: config.recipient,
+      }),
+    }).then((r) => r.json());
+  }
 
   const allFiles = manifestResponseJson.files
     .filter((f) => f.contentType === 'application/smart-health-card')
@@ -93,7 +103,7 @@ async function retrieve(configIncoming: SHLinkConnectRequest | {state: string}) 
       if (f.embedded !== undefined) {
         return f.embedded
       } else {
-        return fetch(f.location).then((f) => f.text())
+        return fetch(f.location!).then((f) => f.text());
       }
     });
 
