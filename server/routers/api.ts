@@ -44,6 +44,9 @@ export const shlApiRouter = new oak.Router()
       if (!shl?.active) {
         throw 'Cannot resolve manifest; no active SHL exists';
       }
+      if (shl.config.exp && new Date(shl.config.exp * 1000).getTime() < new Date().getTime()) {
+        throw 'Cannot resolve manifest; SHL is expired';
+      }
       if (shl.config.passcode && shl.config.passcode !== config.passcode) {
         db.DbLinks.recordPasscodeFailure(shl.id);
         context.response.status = 401;
