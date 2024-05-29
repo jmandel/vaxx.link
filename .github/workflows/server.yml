@@ -23,8 +23,9 @@ jobs:
         subscription-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).subscriptionId }}
     - name: Login to ACR via OIDC
       run: az acr login --name ${{ secrets.CONTAINER_REGISTRY }}
-    - uses: azure/aks-set-context@v2.0
+    - uses: azure/aks-set-context@v3
       with:
+        admin: true
         cluster-name: ${{ secrets.CLUSTER_NAME }}
         resource-group: ${{ secrets.RESOURCE_GROUP }}
     - name: Build and rollout to CI
