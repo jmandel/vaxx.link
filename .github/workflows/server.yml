@@ -1,24 +1,25 @@
 name: Deploy Server to k8s
 on:
+  workflow_dispatch:
   push:
     branches:
     - main
-    paths:
-    - 'server/**'
+#    paths:
+#    - 'server/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - uses: azure/docker-login@v1
+    - name: 'Az CLI login'
+      uses: azure/login@v1
       with:
-        login-server: ${{ secrets.CONTAINER_REGISTRY }}
-        username: ${{ fromJSON(secrets.AZURE_CREDENTIALS).clientId }}
-        password: ${{ fromJSON(secrets.AZURE_CREDENTIALS).clientSecret }}
-    - uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        client-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).clientId }}
+        tenant-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).tenantId }}
+        subscription-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).subscriptionId }}
+    - name: Login to ACR via OIDC
+      run: az acr login --name ${{ secrets.CONTAINER_REGISTRY }}
     - uses: azure/aks-set-context@v2.0
       with:
         cluster-name: ${{ secrets.CLUSTER_NAME }}
