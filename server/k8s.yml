@@ -10,7 +10,6 @@ kind: Ingress
 metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    kubernetes.io/ingress.class: nginx
   name: vaxxlink-ingress
   namespace: vaxxlink
 spec:
@@ -29,10 +28,6 @@ spec:
   - hosts:
     - api.vaxx.link
     secretName: tls-secret
-status:
-  loadBalancer:
-    ingress:
-    - {}
 ---
 apiVersion: v1
 kind: Service
@@ -69,10 +64,10 @@ spec:
       volumes:
       - name: vaxxdb
         persistentVolumeClaim:
-          claimName: vaxxlink-db-azure-managed-disk
+          claimName: vaxxlink-db-managed-disk
       containers:
       - name: shlapi
-        image: argonautcontainerregistry.azurecr.io/vaxxlink:latest
+        image: ghcr.io/jmandel/vaxxlink:latest
         ports:
         - containerPort: 8000
         env:
@@ -87,12 +82,11 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: vaxxlink-db-azure-managed-disk
+  name: vaxxlink-db-managed-disk
   namespace: vaxxlink
 spec:
   accessModes:
   - ReadWriteOnce
-  storageClassName: default
   resources:
     requests:
       storage: 2Gi
