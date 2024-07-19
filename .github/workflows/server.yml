@@ -14,25 +14,17 @@ jobs:
     environment: k8deploy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - name: 'Az CLI login'
-      uses: azure/login@v1
+    - name: Log in to the Container registry
+      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
       with:
-        client-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).clientId }}
-        tenant-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).tenantId }}
-        subscription-id: ${{ fromJSON(secrets.AZURE_CREDENTIALS_OIDC).subscriptionId }}
-    - name: Login to ACR via OIDC
-      run: az acr login --name ${{ secrets.CONTAINER_REGISTRY }}
-    - uses: azure/aks-set-context@v3
-      with:
-        admin: true
-        cluster-name: ${{ secrets.CLUSTER_NAME }}
-        resource-group: ${{ secrets.RESOURCE_GROUP }}
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build and rollout to CI
       working-directory: ./server
       run: |
         docker build . \
-          -t ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink:$GITHUB_SHA \
-          -t ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink:latest
-        docker push ${{ secrets.CONTAINER_REGISTRY }}/vaxxlink
-        kubectl -n vaxxlink rollout restart deployment/vaxxlink
+          -t ghcr.io/jmandel/vaxxlink:$GITHUB_SHA \
+          -t ghcr.io/jmandel/vaxxlink:latest
+        docker push ghcr.io/jmandel/vaxxlink
+        # kubectl -n vaxxlink rollout restart deployment/vaxxlink
