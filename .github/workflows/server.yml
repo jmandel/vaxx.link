@@ -30,3 +30,20 @@ jobs:
           -t ghcr.io/jmandel/vaxxlink:latest
         docker push ghcr.io/jmandel/vaxxlink
         # kubectl -n vaxxlink rollout restart deployment/vaxxlink
+    - name: Configure Kubectl
+      env:
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      run: |
+        mkdir -p $HOME/.kube
+        KUBE_TOKEN=$(echo $KUBE_CONFIG | jq -r .KUBE_TOKEN)
+        KUBE_CERTIFICATE=$(echo $KUBE_CONFIG | jq -r .KUBE_CERTIFICATE)
+        KUBE_SERVER=$(echo $KUBE_CONFIG | jq -r .KUBE_SERVER)
+        echo "$KUBE_CERTIFICATE" | base64 --decode > $HOME/.kube/ca.crt
+        kubectl config set-cluster mycluster --server="$KUBE_SERVER" --certificate-authority=$HOME/.kube/ca.crt
+        kubectl config set-credentials github-actions-deployer --token="$KUBE_TOKEN"
+        kubectl config set-context mycontext --cluster=mycluster --user=github-actions-deployer --namespace=vaxxlink
+        kubectl config use-context mycontext
+
+    - name: Restart Deployment
+      run: |
+        kubectl rollout restart deployment/vaxxlink -n vaxxlink
