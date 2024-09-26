@@ -5,6 +5,7 @@ import { BottomNavigation, BottomNavigationAction } from '@mui/material';
 import Container from '@mui/material/Container';
 import produce from 'immer';
 import QRCode from 'qrcode';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
 import * as jose from 'jose';
@@ -241,6 +242,18 @@ function filterForIds(shcIds? : number[]) {
   return (shc: StoredSHC) => shcIds?.includes(shc.id);
 }
 
+export const deriveSHC = (jws : string, id: number) => {
+  const context = new shdc.Context();
+  context.compact = jws;
+  const payload = (shdc.low.decode.jws.compact(context)).jws.payload;
+  const shc: StoredSHC =  {
+    id,
+    jws,
+    payload,
+  };
+  return shc;
+}
+
 let idGenerator = () => Math.random();
 class ServerStateSync {
   dispatch: React.Dispatch<AppAction>;
@@ -390,7 +403,6 @@ export function SHLinkCreate() {
   let { store, dispatch } = useStore();
   let [usePasscode, setUsePasscode] = useState(false);
   let [passcode, setPasscode] = useState('1234');
-  let [datasetName, setDataSetName] = useState(`Custom Dataset ${Object.keys(store.sharing).length}`);
   let [expires, setExpires] = useState(false);
 
   const handleOnChange = (index: Number) => {
@@ -406,6 +418,7 @@ export function SHLinkCreate() {
   let custom = Boolean(searchParams.get('custom') === 'true');
   let datasetId = Number(searchParams.get('ds'));
   let ds = store.sharing[datasetId];
+  let [datasetName, setDataSetName] = useState(`Custom Dataset ${Object.keys(store.sharing).length}`);
   let vaccines = (custom ? Object.values(store.vaccines) : Object.values(store.vaccines).filter(filterForTypes(ds.shcTypes)).filter(filterForIds(ds.shcs)));
   const defaultArray = new Array(vaccines.length).fill(false)
   // state for keeping track of checked/unchecked vaccines
@@ -458,33 +471,37 @@ export function SHLinkCreate() {
       <h4>Records to Share</h4>
       <ol>
         {vaccines.map((v, i) => {
-          let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
-          let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
-          let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
-          if (custom) {
-            return (
-              <li key={i} style={{ fontFamily: 'monospace' }}>
-              <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
-                <label>
-                {' '}
-               {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
-               {drug.slice(0, 23)}
-               {drug.length > 20 ? '...' : ''} at {location}
-                </label>
-            </li>
-            )
-          } else {
-            return (
-              <li key={i} style={{ fontFamily: 'monospace' }}>
+          try {
+            let fe = v.payload?.vc?.credentialSubject?.fhirBundle?.entry;
+            let drug = cvx[fe[1].resource.vaccineCode.coding[0].code as string] || 'immunization';
+            let location = fe[1].resource?.performer?.[0]?.actor?.display || 'location';
+            if (custom) {
+              return (
+                <li key={i} style={{ fontFamily: 'monospace' }}>
+                <input type="checkbox" checked={isChecked[i]} onChange={() => handleOnChange(i)}/>
+                  <label>
+                  {' '}
                 {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
                 {drug.slice(0, 23)}
                 {drug.length > 20 ? '...' : ''} at {location}
+                  </label>
               </li>
-            );
-          }
+              )
+            } else {
+              return (
+                <li key={i} style={{ fontFamily: 'monospace' }}>
+                  {fe[1].resource.occurrenceDateTime} {fe[0].resource.name[0].given} {fe[0].resource.name[0].family}{' '}
+                  {drug.slice(0, 23)}
+                  {drug.length > 20 ? '...' : ''} at {location}
+                </li>
+              );
+            }
+          } catch {
+            navigate('/error');
+          }      
         })}
       </ol>
-      {custom && 
+      {(custom) && 
       <>
         Custom Dataset Name: <input type='text' value={datasetName} onChange={(e) => setDataSetName(e.target.value)} /> <br></br>
       </>}
@@ -722,6 +739,10 @@ export function SettingsPage() {
   </>;
 }
 
+export function ErrorPage() {
+  return<>An Error has occurred.</>;
+}
+
 export function Vaccines() {
   let { store } = useStore();
   let vaccines = Object.values(store.vaccines);
@@ -813,6 +834,13 @@ function App() {
           to="/health-links"
           icon={<ShareIcon />}
         />
+        <BottomNavigationAction
+          label="Scan"
+          component={NavLink}
+          value="scan-shc"
+          to="/scan"
+          icon={<QrCodeScannerIcon />}
+         />
         <BottomNavigationAction
           label="About"
           component={NavLink}
